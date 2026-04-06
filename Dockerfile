@@ -1,13 +1,17 @@
+ARG PACKAGE
+ARG ENTRYPOINT
+
 FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 RUN apk add --no-cache libc6-compat
 
-# --- Prune the monorepo to only what @morten-olsen/health-api needs ---
+# --- Prune the monorepo to only what the target package needs ---
 FROM base AS prune
+ARG PACKAGE
 WORKDIR /app
 RUN npm i -g turbo@2
 COPY . .
-RUN turbo prune @morten-olsen/health-api --docker
+RUN turbo prune "${PACKAGE}" --docker
 
 # --- Install dependencies from the pruned lockfile ---
 FROM base AS deps
@@ -17,25 +21,20 @@ RUN pnpm install --frozen-lockfile
 
 # --- Build ---
 FROM deps AS build
+ARG PACKAGE
 COPY --from=prune /app/out/full/ .
-RUN pnpm turbo build --filter=@morten-olsen/health-api
+RUN pnpm turbo build --filter="${PACKAGE}"
 
 # --- Production runtime ---
 FROM node:22-alpine AS runtime
 RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 WORKDIR /app
 
-COPY --from=deps /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
-COPY --from=deps /app/packages/contracts/package.json ./packages/contracts/
-COPY --from=deps /app/packages/api/package.json ./packages/api/
-
+COPY --from=prune /app/out/json/ .
 RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/packages/ ./packages/
 
-COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
-COPY --from=build /app/packages/api/dist ./packages/api/dist
-
+ARG ENTRYPOINT
 ENV NODE_ENV=production
-EXPOSE 3007
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3007/healthz || exit 1
-CMD ["node", "packages/api/dist/main.js"]
+ENV ENTRYPOINT=${ENTRYPOINT}
+CMD ["sh", "-c", "node ${ENTRYPOINT}"]
