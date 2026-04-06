@@ -1,0 +1,23 @@
+{
+  "name": "@morten-olsen/health-integration-oura",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "lint": "tsc --noEmit",
+    "generate-types": "openapi-typescript oura-openapi.json -o src/oura-api.d.ts"
+  },
+  "dependencies": {
+    "@morten-olsen/health-contracts": "workspace:*",
+    "openapi-fetch": "^0.17.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
