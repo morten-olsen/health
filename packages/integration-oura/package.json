@@ -3,10 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "bin": {
+    "oura-health": "dist/main.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
-    "sync": "tsx src/main.ts",
+    "cli": "tsx src/main.ts",
     "lint": "tsc --noEmit",
     "generate-types": "openapi-typescript oura-openapi.json -o src/oura-api.d.ts"
   },
