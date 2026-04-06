@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { Services } from "./services/services.js";
 import { DatabaseService } from "./db/db.js";
 import { runMigrations } from "./db/migrate.js";

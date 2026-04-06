@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
+    "sync": "tsx src/main.ts",
     "lint": "tsc --noEmit",
     "generate-types": "openapi-typescript oura-openapi.json -o src/oura-api.d.ts"
   },
