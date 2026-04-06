@@ -3,18 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @morten-olsen/health-api dev",
-    "build": "pnpm -r build",
-    "migrate": "pnpm --filter @morten-olsen/health-api migrate",
-    "lint": "pnpm -r lint",
-    "seed": "pnpm --filter @morten-olsen/health-api seed",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "packageManager": "pnpm@10.32.1",
   "engines": {
     "node": ">=22.6.0"
   },
   "devDependencies": {
+    "turbo": "^2.9.4",
     "vitest": "^4.1.2"
   }
 }

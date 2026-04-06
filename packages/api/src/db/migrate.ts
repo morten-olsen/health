@@ -1,13 +1,10 @@
 import { Migrator } from "kysely";
+import type { Kysely } from "kysely";
 
-import { Services } from "../services/services.js";
-import { DatabaseService } from "./db.js";
+import type { Database } from "./db.js";
 import { migrations } from "./migrations/migrations.js";
 
-const run = async (): Promise<void> => {
-  const services = new Services();
-  const db = services.get(DatabaseService).get();
-
+const runMigrations = async (db: Kysely<Database>): Promise<void> => {
   const migrator = new Migrator({
     db,
     provider: {
@@ -26,11 +23,8 @@ const run = async (): Promise<void> => {
   }
 
   if (error) {
-    console.error("Migration failed:", error);
-    process.exitCode = 1;
+    throw error;
   }
-
-  await services.destroy();
 };
 
-run();
+export { runMigrations };

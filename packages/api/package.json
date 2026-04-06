@@ -7,8 +7,6 @@
     "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
-    "migrate": "tsx src/db/migrate.ts",
-    "seed": "tsx src/catalog/run-seed.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

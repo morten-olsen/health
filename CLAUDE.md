@@ -20,13 +20,12 @@ pnpm monorepo: `packages/contracts` (shared Zod schemas), `packages/api` (Fastif
 
 ```
 pnpm install               # Install all workspace deps
-pnpm dev                   # Start API dev server (tsx watch)
-pnpm build                 # Build all packages (tsc)
+pnpm dev                   # Start API dev server (turbo, runs migrations + seed on startup)
+pnpm build                 # Build all packages (turbo)
+pnpm lint                  # Type-check all packages (turbo)
 pnpm test                  # Run all tests (vitest)
 pnpm test:watch            # Run tests in watch mode
-pnpm migrate               # Run DB migrations
-pnpm seed                  # Seed metric catalog with defaults
 docker compose up -d       # Start TimescaleDB
-pnpm --filter @morten-olsen/health-api dev
-pnpm --filter @morten-olsen/health-contracts build
 ```
+
+Migrations and catalog seeding run automatically on API startup — no separate commands needed.
