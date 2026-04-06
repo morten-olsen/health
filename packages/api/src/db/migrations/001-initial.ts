@@ -54,7 +54,7 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
   await db.schema
     .createTable("metric_samples")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
+      col.defaultTo(sql`uuid_generate_v4()`).notNull(),
     )
     .addColumn("time", "timestamptz", (col) => col.notNull())
     .addColumn("metric_slug", "varchar(100)", (col) =>
@@ -72,6 +72,9 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
       col.notNull().defaultTo(sql`now()`),
     )
     .execute();
+
+  // Composite PK including time so TimescaleDB can partition on it
+  await sql`ALTER TABLE metric_samples ADD PRIMARY KEY (id, time)`.execute(db);
 
   // Convert to TimescaleDB hypertable if extension is available
   await sql`
@@ -127,7 +130,7 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
   await db.schema
     .createTable("events")
     .addColumn("id", "uuid", (col) =>
-      col.primaryKey().defaultTo(sql`uuid_generate_v4()`),
+      col.defaultTo(sql`uuid_generate_v4()`).notNull(),
     )
     .addColumn("time", "timestamptz", (col) => col.notNull())
     .addColumn("category", "varchar(100)", (col) => col.notNull())
@@ -137,6 +140,8 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
       col.notNull().defaultTo(sql`now()`),
     )
     .execute();
+
+  await sql`ALTER TABLE events ADD PRIMARY KEY (id, time)`.execute(db);
 
   await sql`
     DO $$
