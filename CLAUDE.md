@@ -12,7 +12,8 @@ pnpm monorepo: `packages/contracts` (shared Zod schemas), `packages/api` (Fastif
 - **Services use lazy resolution**: Resolve deps in methods via `this.#services.get(X)`, never in constructors.
 - **Integrations are external**: They communicate over HTTP only. Core never imports integration code.
 - **Metric catalog gates ingest**: Unknown `metric_slug` values are rejected. New metrics require a catalog entry first.
-- **Raw data is immutable**: `raw_records` is append-only.
+- **Raw data is immutable**: `raw_records` is append-only (but upserts on `source + source_id`).
+- **Ingest is idempotent**: Metric samples deduplicate on `(metric_slug, source, time)`. Raw records and sessions deduplicate on `(source, source_id)` when `source_id` is provided. All use `ON CONFLICT ... DO UPDATE`.
 - **All docs are living documents**: Update `docs/` when assumptions change.
 
 ## Commands
@@ -24,6 +25,8 @@ pnpm build                 # Build all packages (tsc)
 pnpm test                  # Run all tests (vitest)
 pnpm test:watch            # Run tests in watch mode
 pnpm migrate               # Run DB migrations
+pnpm seed                  # Seed metric catalog with defaults
+docker compose up -d       # Start TimescaleDB
 pnpm --filter @morten-olsen/health-api dev
 pnpm --filter @morten-olsen/health-contracts build
 ```

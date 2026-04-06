@@ -1,5 +1,7 @@
 import Fastify from "fastify";
+import fastifySwagger from "@fastify/swagger";
 import {
+  jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
   type ZodTypeProvider,
@@ -27,11 +29,19 @@ const createServer = (services: Services) => {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
+  app.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: "Health Data Aggregation API",
+        description: "Personal health data ingest, query, and resolution API",
+        version: "0.0.1",
+      },
+    },
+    transform: jsonSchemaTransform,
+  });
+
   app.register(scalarPlugin, {
     routePrefix: "/docs",
-    configuration: {
-      url: "/docs/openapi.json",
-    },
   });
 
   const api = app.withTypeProvider<ZodTypeProvider>();

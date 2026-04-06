@@ -8,9 +8,11 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "migrate": "tsx src/db/migrate.ts",
+    "seed": "tsx src/catalog/run-seed.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/swagger": "^9.7.0",
     "@morten-olsen/health-contracts": "workspace:*",
     "@scalar/fastify-api-reference": "^1.25.0",
     "fastify": "^5.3.0",

@@ -16,25 +16,43 @@ class IngestService {
     this.#services = services;
   }
 
-  ingestRaw = async (input: { source: string; sourceId?: string; endpoint?: string; payload: Record<string, unknown> }): Promise<{ id: string }> => {
+  ingestRaw = async (input: {
+    source: string;
+    sourceId?: string;
+    endpoint?: string;
+    payload: Record<string, unknown>;
+  }): Promise<{ id: string }> => {
     const validated = rawRecordInputSchema.parse(input);
     const db = this.#services.get(DatabaseService).get();
 
-    const [row] = await db
+    const query = db
       .insertInto("raw_records")
       .values({
         source: validated.source,
         source_id: validated.sourceId ?? null,
         endpoint: validated.endpoint ?? null,
         payload: JSON.stringify(validated.payload),
-      })
-      .returning("id")
-      .execute();
+      });
 
-    return { id: row!.id };
+    // If source_id is provided, upsert (update payload on conflict)
+    const result = validated.sourceId
+      ? await query
+          .onConflict((oc) =>
+            oc.columns(["source", "source_id"]).doUpdateSet({
+              payload: JSON.stringify(validated.payload),
+              endpoint: validated.endpoint ?? null,
+            }),
+          )
+          .returning("id")
+          .execute()
+      : await query.returning("id").execute();
+
+    return { id: result[0]!.id };
   };
 
-  ingestMetrics = async (input: { samples: MetricSampleInput[] }): Promise<{ count: number }> => {
+  ingestMetrics = async (input: {
+    samples: MetricSampleInput[];
+  }): Promise<{ count: number }> => {
     const validated = metricSampleBatchInputSchema.parse(input);
     const catalog = this.#services.get(CatalogService);
     const db = this.#services.get(DatabaseService).get();
@@ -47,6 +65,7 @@ class IngestService {
       }
     }
 
+    // ON CONFLICT (metric_slug, source, time) update values
     await db
       .insertInto("metric_samples")
       .values(
@@ -58,6 +77,14 @@ class IngestService {
           value_json: s.valueJson ? JSON.stringify(s.valueJson) : null,
           value_boolean: s.valueBoolean ?? null,
           metadata: s.metadata ? JSON.stringify(s.metadata) : null,
+        })),
+      )
+      .onConflict((oc) =>
+        oc.columns(["metric_slug", "source", "time"]).doUpdateSet((eb) => ({
+          value_numeric: eb.ref("excluded.value_numeric"),
+          value_json: eb.ref("excluded.value_json"),
+          value_boolean: eb.ref("excluded.value_boolean"),
+          metadata: eb.ref("excluded.metadata"),
         })),
       )
       .execute();
@@ -77,24 +104,38 @@ class IngestService {
     const validated = sessionInputSchema.parse(input);
     const db = this.#services.get(DatabaseService).get();
 
-    const [row] = await db
-      .insertInto("sessions")
-      .values({
-        type: validated.type,
-        source: validated.source,
-        source_id: validated.sourceId ?? null,
-        start_time: new Date(validated.startTime),
-        end_time: new Date(validated.endTime),
-        metadata: validated.metadata ? JSON.stringify(validated.metadata) : null,
-      })
-      .returning("id")
-      .execute();
+    const values = {
+      type: validated.type,
+      source: validated.source,
+      source_id: validated.sourceId ?? null,
+      start_time: new Date(validated.startTime),
+      end_time: new Date(validated.endTime),
+      metadata: validated.metadata
+        ? JSON.stringify(validated.metadata)
+        : null,
+    };
+
+    const query = db.insertInto("sessions").values(values);
+
+    // If source_id is provided, upsert (update on conflict)
+    const result = validated.sourceId
+      ? await query
+          .onConflict((oc) =>
+            oc.columns(["source", "source_id"]).doUpdateSet({
+              start_time: values.start_time,
+              end_time: values.end_time,
+              metadata: values.metadata,
+            }),
+          )
+          .returning("id")
+          .execute()
+      : await query.returning("id").execute();
 
     if (validated.metrics && validated.metrics.length > 0) {
       await this.ingestMetrics({ samples: validated.metrics });
     }
 
-    return { id: row!.id };
+    return { id: result[0]!.id };
   };
 }
 
