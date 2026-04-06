@@ -33,10 +33,12 @@ Options:
   --port <port>       Webhook server port (server mode), default: 3008
   --host <host>       Webhook server host (server mode), default: 0.0.0.0
   --token-path <path> Token storage path, default: ~/.config/oura-health/tokens.json
+  --redirect-uri <uri> OAuth2 redirect URI (must match Oura app settings)
 
 Environment:
   OURA_CLIENT_ID      OAuth2 client ID (required)
   OURA_CLIENT_SECRET  OAuth2 client secret (required)
+  OURA_REDIRECT_URI   OAuth2 redirect URI (must match Oura app settings)
   HEALTH_API_URL      Health API URL (overridden by --api-url)
 
 Examples:
@@ -60,13 +62,13 @@ const requireOAuthEnv = (): { clientId: string; clientSecret: string } => {
   return { clientId, clientSecret };
 };
 
-const getOAuthConfig = (tokenPath: string): OuraOAuthConfig => {
+const getOAuthConfig = (tokenPath: string, redirectUri?: string): OuraOAuthConfig => {
   const { clientId, clientSecret } = requireOAuthEnv();
-  return { clientId, clientSecret, tokenPath };
+  return { clientId, clientSecret, redirectUri, tokenPath };
 };
 
-const runLogin = async (tokenPath: string): Promise<void> => {
-  const config = getOAuthConfig(tokenPath);
+const runLogin = async (tokenPath: string, redirectUri?: string): Promise<void> => {
+  const config = getOAuthConfig(tokenPath, redirectUri);
   await login(config);
 };
 
@@ -87,8 +89,8 @@ const runStatus = (tokenPath: string): void => {
   console.log(`Expires: ${expiresAt.toISOString()}${isExpired ? " (EXPIRED — will refresh on next use)" : ""}`);
 };
 
-const runSync = async (opts: { from: string; to: string; apiUrl: string; tokenPath: string }): Promise<void> => {
-  const config = getOAuthConfig(opts.tokenPath);
+const runSync = async (opts: { from: string; to: string; apiUrl: string; tokenPath: string; redirectUri?: string }): Promise<void> => {
+  const config = getOAuthConfig(opts.tokenPath, opts.redirectUri);
   const accessToken = await getAccessToken(config);
 
   console.log(`Syncing Oura data from ${opts.from} to ${opts.to}`);
@@ -102,8 +104,8 @@ const runSync = async (opts: { from: string; to: string; apiUrl: string; tokenPa
   console.log(`Done: ${result.rawRecords} raw records, ${result.metrics} metrics, ${result.sessions} sessions`);
 };
 
-const runServer = async (opts: { from: string; to: string; apiUrl: string; port: number; host: string; tokenPath: string }): Promise<void> => {
-  const oauthConfig = getOAuthConfig(opts.tokenPath);
+const runServer = async (opts: { from: string; to: string; apiUrl: string; port: number; host: string; tokenPath: string; redirectUri?: string }): Promise<void> => {
+  const oauthConfig = getOAuthConfig(opts.tokenPath, opts.redirectUri);
 
   // Try initial sync if tokens are available
   try {
@@ -148,6 +150,7 @@ const main = async (): Promise<void> => {
       port: { type: "string" },
       host: { type: "string" },
       "token-path": { type: "string" },
+      "redirect-uri": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -160,19 +163,20 @@ const main = async (): Promise<void> => {
   }
 
   const tokenPath = values["token-path"] ?? process.env["OURA_TOKEN_PATH"] ?? DEFAULT_TOKEN_PATH;
+  const redirectUri = values["redirect-uri"] ?? process.env["OURA_REDIRECT_URI"];
   const from = values.from ?? process.env["SYNC_START_DATE"] ?? daysAgo(7);
   const to = values.to ?? today();
   const apiUrl = values["api-url"] ?? process.env["HEALTH_API_URL"] ?? "http://localhost:3007";
 
   switch (command) {
     case "login":
-      await runLogin(tokenPath);
+      await runLogin(tokenPath, redirectUri);
       break;
     case "status":
       runStatus(tokenPath);
       break;
     case "sync":
-      await runSync({ from, to, apiUrl, tokenPath });
+      await runSync({ from, to, apiUrl, tokenPath, redirectUri });
       break;
     case "server":
       await runServer({
@@ -182,6 +186,7 @@ const main = async (): Promise<void> => {
         port: Number(values.port ?? process.env["WEBHOOK_PORT"] ?? 3008),
         host: values.host ?? process.env["WEBHOOK_HOST"] ?? "0.0.0.0",
         tokenPath,
+        redirectUri,
       });
       break;
     default:

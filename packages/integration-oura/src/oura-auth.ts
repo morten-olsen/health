@@ -19,6 +19,7 @@ type OuraTokens = {
 type OuraOAuthConfig = {
   clientId: string;
   clientSecret: string;
+  redirectUri?: string;
   tokenPath: string;
 };
 
@@ -143,7 +144,7 @@ const exchangeCode = async (config: OuraOAuthConfig, code: string, redirectUri: 
  * and exchanges the callback code for tokens.
  */
 const login = async (config: OuraOAuthConfig, port = 8787): Promise<void> => {
-  const redirectUri = `http://localhost:${port}/callback`;
+  const redirectUri = config.redirectUri ?? `http://localhost:${port}/callback`;
 
   const authUrl = `${AUTHORIZE_URL}?${new URLSearchParams({
     response_type: "code",
