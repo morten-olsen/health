@@ -44,6 +44,8 @@ const createServer = (services: Services) => {
     routePrefix: "/docs",
   });
 
+  app.get("/healthz", async () => ({ status: "ok" }));
+
   // All routes inside a plugin so swagger captures them
   app.register((instance, _opts, done) => {
     const api = instance.withTypeProvider<ZodTypeProvider>();

@@ -48,6 +48,9 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      '@morten-olsen/health-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@types/pg':
         specifier: ^8.11.0
         version: 8.20.0
@@ -64,6 +67,9 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      '@morten-olsen/health-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -86,6 +92,9 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      '@morten-olsen/health-tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@types/node':
         specifier: ^25.5.2
         version: 25.5.2
@@ -95,6 +104,8 @@ importers:
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
+
+  packages/tsconfig: {}
 
 packages:
 

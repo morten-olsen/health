@@ -17,6 +17,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@morten-olsen/health-tsconfig": "workspace:*",
     "typescript": "^5.8.0"
   }
 }
