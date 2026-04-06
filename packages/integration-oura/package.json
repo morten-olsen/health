@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@morten-olsen/health-contracts": "workspace:*",
+    "fastify": "^5.8.4",
     "openapi-fetch": "^0.17.0",
     "zod": "^3.25.0"
   },

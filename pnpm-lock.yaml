@@ -70,6 +70,9 @@ importers:
       '@morten-olsen/health-contracts':
         specifier: workspace:*
         version: link:../contracts
+      fastify:
+        specifier: ^5.8.4
+        version: 5.8.4
       openapi-fetch:
         specifier: ^0.17.0
         version: 0.17.0
