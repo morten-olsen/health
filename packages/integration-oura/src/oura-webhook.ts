@@ -1,7 +1,6 @@
 import type { MetricSampleInput, SessionInput, RawRecordInput } from "@morten-olsen/health-contracts";
 
 import { createOuraClient } from "./oura-client.js";
-import type { OuraClientConfig } from "./oura-client.js";
 import { sendRawRecords, sendMetrics, sendSessions } from "./health-api-client.js";
 import {
   mapHeartRate,
@@ -22,7 +21,7 @@ type WebhookEvent = {
 };
 
 type WebhookHandlerConfig = {
-  oura: OuraClientConfig;
+  getAccessToken: () => Promise<string>;
   healthApiUrl: string;
 };
 
@@ -48,7 +47,8 @@ const getDateWindow = (eventTime?: string): { startDate: string; endDate: string
 };
 
 const handleWebhookEvent = async (config: WebhookHandlerConfig, event: WebhookEvent): Promise<WebhookResult> => {
-  const oura = createOuraClient(config.oura);
+  const accessToken = await config.getAccessToken();
+  const oura = createOuraClient({ accessToken });
   const apiUrl = config.healthApiUrl;
   const { startDate, endDate } = getDateWindow(event.event_time);
 

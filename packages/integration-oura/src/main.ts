@@ -1,16 +1,15 @@
+import "dotenv/config";
+
+import * as path from "node:path";
+import * as os from "node:os";
 import { parseArgs } from "node:util";
 
 import { syncDateRange } from "./oura-sync.js";
 import { createWebhookServer } from "./webhook-server.js";
+import { getAccessToken, login, loadTokens } from "./oura-auth.js";
+import type { OuraOAuthConfig } from "./oura-auth.js";
 
-const getRequiredEnv = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    console.error(`Error: ${name} environment variable is required`);
-    process.exit(1);
-  }
-  return value;
-};
+const DEFAULT_TOKEN_PATH = path.join(os.homedir(), ".config", "oura-health", "tokens.json");
 
 const today = (): string => new Date().toISOString().split("T")[0]!;
 
@@ -23,6 +22,8 @@ const printUsage = (): void => {
 Commands:
   sync      Pull data from Oura and push to Health API (default: last 7 days)
   server    Start webhook server (also does initial sync on startup)
+  login     Authenticate with Oura via OAuth2 (opens browser)
+  status    Show current authentication status
   help      Show this help message
 
 Options:
@@ -31,24 +32,66 @@ Options:
   --api-url <url>     Health API URL, default: http://localhost:3007
   --port <port>       Webhook server port (server mode), default: 3008
   --host <host>       Webhook server host (server mode), default: 0.0.0.0
+  --token-path <path> Token storage path, default: ~/.config/oura-health/tokens.json
 
 Environment:
-  OURA_ACCESS_TOKEN   Oura API access token (required)
+  OURA_CLIENT_ID      OAuth2 client ID (required)
+  OURA_CLIENT_SECRET  OAuth2 client secret (required)
   HEALTH_API_URL      Health API URL (overridden by --api-url)
 
 Examples:
+  oura-health login                         # Authenticate with Oura
+  oura-health status                        # Check auth status
   oura-health sync                          # Sync last 7 days
   oura-health sync --from 2024-01-01        # Backfill from date
-  oura-health sync --from 2024-01-01 --to 2024-06-30
-  oura-health server                        # Start webhook listener
-  oura-health server --port 9000            # Custom port`);
+  oura-health server                        # Start webhook listener`);
 };
 
-const runSync = async (opts: { from: string; to: string; apiUrl: string }): Promise<void> => {
-  const accessToken = getRequiredEnv("OURA_ACCESS_TOKEN");
+const requireOAuthEnv = (): { clientId: string; clientSecret: string } => {
+  const clientId = process.env["OURA_CLIENT_ID"];
+  const clientSecret = process.env["OURA_CLIENT_SECRET"];
+
+  if (!clientId || !clientSecret) {
+    console.error("Error: OURA_CLIENT_ID and OURA_CLIENT_SECRET environment variables are required.");
+    console.error("\nCreate an application at https://cloud.ouraring.com/ to get these credentials.");
+    process.exit(1);
+  }
+
+  return { clientId, clientSecret };
+};
+
+const getOAuthConfig = (tokenPath: string): OuraOAuthConfig => {
+  const { clientId, clientSecret } = requireOAuthEnv();
+  return { clientId, clientSecret, tokenPath };
+};
+
+const runLogin = async (tokenPath: string): Promise<void> => {
+  const config = getOAuthConfig(tokenPath);
+  await login(config);
+};
+
+const runStatus = (tokenPath: string): void => {
+  const tokens = loadTokens(tokenPath);
+  if (!tokens) {
+    console.log("Auth: Not authenticated");
+    console.log(`Token file: ${tokenPath} (not found)`);
+    console.log(`\nRun "oura-health login" to authenticate.`);
+    return;
+  }
+
+  const expiresAt = new Date(tokens.obtained_at + tokens.expires_in * 1000);
+  const isExpired = Date.now() > expiresAt.getTime();
+
+  console.log("Auth: OAuth2 tokens");
+  console.log(`Token file: ${tokenPath}`);
+  console.log(`Expires: ${expiresAt.toISOString()}${isExpired ? " (EXPIRED — will refresh on next use)" : ""}`);
+};
+
+const runSync = async (opts: { from: string; to: string; apiUrl: string; tokenPath: string }): Promise<void> => {
+  const config = getOAuthConfig(opts.tokenPath);
+  const accessToken = await getAccessToken(config);
 
   console.log(`Syncing Oura data from ${opts.from} to ${opts.to}`);
-  console.log(`Health API: ${opts.apiUrl}`);
 
   const result = await syncDateRange(
     { oura: { accessToken }, healthApiUrl: opts.apiUrl },
@@ -59,12 +102,13 @@ const runSync = async (opts: { from: string; to: string; apiUrl: string }): Prom
   console.log(`Done: ${result.rawRecords} raw records, ${result.metrics} metrics, ${result.sessions} sessions`);
 };
 
-const runServer = async (opts: { from: string; to: string; apiUrl: string; port: number; host: string }): Promise<void> => {
-  const accessToken = getRequiredEnv("OURA_ACCESS_TOKEN");
+const runServer = async (opts: { from: string; to: string; apiUrl: string; port: number; host: string; tokenPath: string }): Promise<void> => {
+  const oauthConfig = getOAuthConfig(opts.tokenPath);
 
-  // Initial sync
-  console.log(`Initial sync from ${opts.from} to ${opts.to}`);
+  // Try initial sync if tokens are available
   try {
+    const accessToken = await getAccessToken(oauthConfig);
+    console.log(`Initial sync from ${opts.from} to ${opts.to}`);
     const result = await syncDateRange(
       { oura: { accessToken }, healthApiUrl: opts.apiUrl },
       opts.from,
@@ -72,18 +116,18 @@ const runServer = async (opts: { from: string; to: string; apiUrl: string; port:
     );
     console.log(`Initial sync done: ${result.rawRecords} raw, ${result.metrics} metrics, ${result.sessions} sessions`);
   } catch (error) {
-    console.error("Initial sync failed, continuing with webhook server:", error);
+    console.log("Skipping initial sync (not authenticated yet — visit /login to set up)");
   }
 
+  // Start server — works even without tokens (login available at /login)
   const server = createWebhookServer({
-    oura: { accessToken },
     healthApiUrl: opts.apiUrl,
     port: opts.port,
     host: opts.host,
+    oauth: oauthConfig,
   });
 
   await server.start();
-  console.log(`Webhook server listening on ${opts.host}:${opts.port}`);
 
   const shutdown = async (): Promise<void> => {
     await server.stop();
@@ -103,6 +147,7 @@ const main = async (): Promise<void> => {
       "api-url": { type: "string" },
       port: { type: "string" },
       host: { type: "string" },
+      "token-path": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -114,13 +159,20 @@ const main = async (): Promise<void> => {
     return;
   }
 
+  const tokenPath = values["token-path"] ?? process.env["OURA_TOKEN_PATH"] ?? DEFAULT_TOKEN_PATH;
   const from = values.from ?? process.env["SYNC_START_DATE"] ?? daysAgo(7);
   const to = values.to ?? today();
   const apiUrl = values["api-url"] ?? process.env["HEALTH_API_URL"] ?? "http://localhost:3007";
 
   switch (command) {
+    case "login":
+      await runLogin(tokenPath);
+      break;
+    case "status":
+      runStatus(tokenPath);
+      break;
     case "sync":
-      await runSync({ from, to, apiUrl });
+      await runSync({ from, to, apiUrl, tokenPath });
       break;
     case "server":
       await runServer({
@@ -129,6 +181,7 @@ const main = async (): Promise<void> => {
         apiUrl,
         port: Number(values.port ?? process.env["WEBHOOK_PORT"] ?? 3008),
         host: values.host ?? process.env["WEBHOOK_HOST"] ?? "0.0.0.0",
+        tokenPath,
       });
       break;
     default:

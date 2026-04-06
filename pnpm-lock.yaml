@@ -73,6 +73,9 @@ importers:
       '@morten-olsen/health-contracts':
         specifier: workspace:*
         version: link:../contracts
+      dotenv:
+        specifier: ^17.4.1
+        version: 17.4.1
       fastify:
         specifier: ^5.8.4
         version: 5.8.4

@@ -9,8 +9,18 @@ The integration is a standalone process — it communicates with the core API ex
 ## Setup
 
 1. Create an Oura developer application at https://cloud.ouraring.com/
-2. Obtain a Personal Access Token (or set up OAuth2)
-3. Set the `OURA_ACCESS_TOKEN` environment variable
+2. Note your **Client ID** and **Client Secret**
+3. Authenticate:
+
+```bash
+export OURA_CLIENT_ID=your_client_id
+export OURA_CLIENT_SECRET=your_client_secret
+oura-health login
+```
+
+This opens your browser for OAuth2 authorization. Tokens are saved to `~/.config/oura-health/tokens.json` and auto-refresh when expired.
+
+Alternatively, set `OURA_ACCESS_TOKEN` directly to skip OAuth (useful for quick testing).
 
 ## CLI Usage
 
@@ -26,6 +36,8 @@ oura-health <command> [options]
 
 | Command | Description |
 |---------|-------------|
+| `login` | Authenticate with Oura via OAuth2 (opens browser) |
+| `status` | Show current authentication status |
 | `sync` | Pull data from Oura and push to Health API (default) |
 | `server` | Start webhook server with initial sync on startup |
 | `help` | Show usage information |
@@ -39,6 +51,7 @@ oura-health <command> [options]
 | `--api-url <url>` | `http://localhost:3007` | Health API URL |
 | `--port <port>` | `3008` | Webhook server port (server mode) |
 | `--host <host>` | `0.0.0.0` | Webhook server host (server mode) |
+| `--token-path <path>` | `~/.config/oura-health/tokens.json` | Token storage location |
 
 All flags fall back to environment variables, then defaults.
 
@@ -65,25 +78,59 @@ oura-health server --port 9000 --api-url https://health.example.com
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OURA_ACCESS_TOKEN` | Yes | Oura API bearer token |
+| `OURA_CLIENT_ID` | Yes | OAuth2 client ID from https://cloud.ouraring.com/ |
+| `OURA_CLIENT_SECRET` | Yes | OAuth2 client secret |
 | `HEALTH_API_URL` | No | Health API URL (default: `http://localhost:3007`) |
 | `SYNC_START_DATE` | No | Fallback start date for sync (default: 7 days ago) |
 | `WEBHOOK_PORT` | No | Fallback port for server mode (default: `3008`) |
 | `WEBHOOK_HOST` | No | Fallback host for server mode (default: `0.0.0.0`) |
 
+The integration reads `.env` files via dotenv.
+
+## Authentication
+
+OAuth2 is the only supported auth method. Tokens are stored at `~/.config/oura-health/tokens.json` (configurable via `--token-path`) and auto-refresh when expired.
+
+### CLI Login
+
+```bash
+oura-health login
+```
+
+Opens a browser for Oura OAuth2 authorization. A temporary local server on port 8787 receives the callback.
+
+### Server Login (deployed)
+
+When running in server mode, visit `http://<host>:<port>/login` in a browser. The server provides a web-based OAuth flow at:
+
+- `GET /login` — shows auth status and login link
+- `GET /login/start` — redirects to Oura OAuth
+- `GET /login/callback` — receives the OAuth callback and saves tokens
+
+This allows setting up authentication on a deployed instance without CLI access.
+
+### Token Status
+
+```bash
+oura-health status
+```
+
 ## Modes
 
 ### Pull Mode (`sync`)
 
-Fetches data for the given date range from the Oura API, maps it to canonical health metrics, and POSTs it to the Health API. Then exits.
+Fetches data for the given date range from the Oura API, maps it to canonical health metrics, and POSTs it to the Health API. Then exits. Requires prior authentication via `oura-health login`.
 
 Safe to re-run — all ingest is idempotent via upserts.
 
 ### Server Mode (`server`)
 
-1. Runs an initial pull sync (same as `sync`)
-2. Starts a Fastify HTTP server that receives Oura webhook notifications
-3. On each webhook event, fetches the relevant data from Oura and forwards it to the Health API
+1. Attempts an initial pull sync (skipped if not yet authenticated)
+2. Starts a Fastify HTTP server with:
+   - `/login` — web-based OAuth setup
+   - `/webhooks/oura` — Oura webhook receiver
+   - `/health` — health check with auth status
+3. On each webhook event, fetches the relevant data from Oura and forwards to the Health API
 
 #### Webhook Setup
 
