@@ -11,6 +11,8 @@ A single pane of glass for personal health data from multiple tracking devices a
 - **Generic metric model** — New health metrics (HR, HRV, SpO2, weight, etc.) are added via catalog entries, not schema changes.
 - **Pluggable resolution** — Dedup and merge strategies are configurable per metric type and swappable without code changes.
 - **Causation discovery** — Manual event tracking (coffee, meetings, stress) alongside health data to find correlations with outliers.
+- **Idempotent ingest** — Re-syncing the same data is safe. Dedup at the database level via unique constraints and upserts.
+- **Simple deployment** — Single Docker image that self-migrates and self-seeds on startup. No orchestration needed.
 - **Incremental buildout** — Strong modular core first, then integrations and aggregation methods added over time.
 
 ## Non-Goals (for now)
