@@ -1,0 +1,19 @@
+{
+  "name": "health",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @morten-olsen/health-api dev",
+    "build": "pnpm -r build",
+    "migrate": "pnpm --filter @morten-olsen/health-api migrate",
+    "lint": "pnpm -r lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.2"
+  }
+}
