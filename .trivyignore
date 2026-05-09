@@ -1,0 +1,15 @@
+# Trivy ignore file — see https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+#
+# Each entry should include WHY it's ignored. Re-evaluate when bumping the
+# upstream package — if the false positive disappears, remove the line.
+
+# CVE-2026-33671 — picomatch ReDoS via crafted extglob patterns.
+# Trivy's `node-pkg` analyzer parses individual package.json files and
+# reports the lower bound of declared ranges as the "installed version".
+# Vitest 4.1.5 declares `"picomatch": "^4.0.3"`, but pnpm resolves the
+# range to 4.0.4 (the fix) — verified via:
+#   - `pnpm why picomatch` shows every path resolving to 4.0.4
+#   - `pnpm-lock.yaml` contains only `picomatch@4.0.4` entries
+#   - the only on-disk copy is `node_modules/.pnpm/picomatch@4.0.4/`
+# Re-check when vitest > 4.1.5 bumps the declared range to ^4.0.4.
+CVE-2026-33671

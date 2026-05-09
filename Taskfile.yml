@@ -1,0 +1,137 @@
+version: '3'
+
+# Single source of truth for "what to run" — humans, agents, and CI all call
+# `task <name>`. Anything CI does should be reproducible locally byte-for-byte.
+
+vars:
+  SERVER_DIR: apps/server
+  SMOKE_PORT: 3199
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install all dependencies
+    cmds:
+      - corepack enable
+      - pnpm install
+
+  ci:install:
+    desc: Install with frozen lockfile (CI-only)
+    cmds:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+
+  dev:
+    desc: Start the server in dev mode with watch
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - node --experimental-strip-types --watch src/server.ts
+
+  start:
+    desc: Run the server (no watch)
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - node --experimental-strip-types src/server.ts
+
+  check:
+    desc: Type-check all workspaces
+    cmds:
+      - pnpm -r check
+
+  lint:
+    desc: Run all linting (type-check + ESLint)
+    deps: [check, lint:eslint]
+
+  lint:eslint:
+    desc: Run ESLint across the monorepo
+    cmds:
+      - pnpm eslint .
+
+  format:
+    desc: Format the codebase with Prettier
+    cmds:
+      - pnpm prettier --write .
+
+  format:check:
+    desc: Check formatting without writing changes
+    cmds:
+      - pnpm prettier --check .
+
+  license:check:
+    desc: Verify production deps use an allowed license
+    cmds:
+      - >
+        pnpm dlx license-checker --production
+        --onlyAllow 'MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;CC-BY-3.0;CC-BY-4.0;Unlicense;Python-2.0'
+
+  test:
+    desc: Run all tests
+    cmds:
+      - pnpm test
+
+  test:smoke:
+    desc: Start the server, hit /api/health, verify, shut down
+    dir: '{{.SERVER_DIR}}'
+    env:
+      PORT: '{{.SMOKE_PORT}}'
+    cmds:
+      - |
+        cleanup() { kill $PID 2>/dev/null; wait $PID 2>/dev/null; }
+        trap cleanup EXIT
+        node --experimental-strip-types src/server.ts &
+        PID=$!
+        sleep 2
+        STATUS=$(curl -sf http://localhost:{{.SMOKE_PORT}}/api/health | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+        if [ "$STATUS" = "ok" ]; then
+          echo "Smoke test passed"
+        else
+          echo "Smoke test failed: expected 'ok', got '$STATUS'"
+          exit 1
+        fi
+
+  ci:quality:
+    desc: Type-check + lint + test — what the quality gate runs
+    cmds:
+      - task: ci:install
+      - task: check
+      - task: lint:eslint
+      - task: test
+
+  ci:compliance:
+    desc: License check — what the compliance gate runs
+    cmds:
+      - task: ci:install
+      - task: license:check
+
+  docker:build:
+    desc: Build the Docker image locally (mirrors what kaniko builds in CI)
+    cmds:
+      - docker build -t health:local .
+
+  docker:smoke:
+    desc: Run the local image, probe /api/health, shut it down
+    cmds:
+      - |
+        CONTAINER=$(docker run -d -p 3399:3000 health:local)
+        cleanup() { docker rm -f $CONTAINER >/dev/null; }
+        trap cleanup EXIT
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+          if curl -sf http://localhost:3399/api/health >/dev/null; then
+            echo "Docker smoke test passed"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Docker smoke test failed — /api/health did not respond"
+        docker logs $CONTAINER
+        exit 1
+
+  clean:
+    desc: Remove build artifacts and local databases
+    cmds:
+      - rm -rf {{.SERVER_DIR}}/dist
+      - rm -f {{.SERVER_DIR}}/*.db {{.SERVER_DIR}}/*.db-wal {{.SERVER_DIR}}/*.db-shm

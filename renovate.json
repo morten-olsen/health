@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 06:00 on monday"],
+  "timezone": "Europe/Copenhagen",
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 8,
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 06:00 on monday"]
+  },
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "matchCurrentVersion": "!/^0/",
+      "groupName": "npm non-major",
+      "automerge": false
+    },
+    {
+      "matchManagers": ["mise"],
+      "groupName": "mise tools"
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker base images"
+    },
+    {
+      "matchPackageNames": ["node"],
+      "matchManagers": ["mise", "dockerfile"],
+      "description": "Pin Node major across mise.toml + Dockerfile so they stay aligned",
+      "groupName": "node runtime"
+    }
+  ]
+}

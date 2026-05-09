@@ -1,0 +1,13 @@
+[tools]
+node = "24"
+"npm:@go-task/cli" = "latest"
+
+# pnpm comes from corepack — version is pinned in package.json#packageManager.
+
+# better-sqlite3 doesn't ship Node-24 prebuilds reliably yet — give node-gyp
+# a Python toolchain so the install scripts can compile from source.
+python = "3.13"
+
+[env]
+# Silence pnpm's warning about NODE_AUTH_TOKEN in ~/.npmrc
+NODE_AUTH_TOKEN = ""

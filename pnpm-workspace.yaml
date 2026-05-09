@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+
+# Native deps that need their install scripts to run (otherwise pnpm refuses
+# by default and the prebuilt/compiled binary never lands).
+onlyBuiltDependencies:
+  - better-sqlite3
