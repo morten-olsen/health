@@ -54,16 +54,25 @@ Sessions and events are tracked as `kind: 'session'` and `kind: 'event'` in the 
 
 The catalogue is the validation contract. Two namespaces, governed differently:
 
-|                    | Canonical                                  | Custom                                  |
-| ------------------ | ------------------------------------------ | --------------------------------------- |
-| Namespace          | flat (`heart_rate`, `sleep_stage`)         | vendor-prefixed (`garmin.stress_score`) |
-| Owner              | platform — shipped, versioned via releases | user — registered through API           |
-| Mutability via API | none                                       | full CRUD (within trust model)          |
-| Promotion path     | none — never auto-promoted from custom     | n/a                                     |
+|                    | Canonical                                  | Custom                                                                   |
+| ------------------ | ------------------------------------------ | ------------------------------------------------------------------------ |
+| Namespace          | flat (`heart_rate`, `sleep_stage`)         | vendor-prefixed (`garmin.stress_score`)                                  |
+| Owner              | platform — shipped, versioned via releases | per-user — each user owns their own custom entries                       |
+| Visibility         | all authenticated users                    | only the owning user                                                     |
+| Mutability via API | none                                       | the owning user can register entries; entries are invisible across users |
+| Promotion path     | none — never auto-promoted from custom     | n/a                                                                      |
 
-The Garmin-vs-Oura `stress_score` problem is solved by namespacing: they're separate entries (`garmin.stress_score`, `oura.stress_score`) that never silently unify. A consumer asking for "stress" must consciously pick a vendor or write their own cross-vendor mapper. Pretending otherwise is the actively harmful failure mode.
+The Garmin-vs-Oura `stress_score` problem is solved by namespacing: they're separate entries (`garmin.stress_score`, `oura.stress_score`) that never silently unify. Two users can also independently register the same `garmin.stress_score` with different shapes — they're separate per-user entries that don't collide. A consumer asking for "stress" must consciously pick a vendor (or user, or write a cross-vendor mapper). Pretending otherwise is the actively harmful failure mode.
 
-Aliases let a vendor declare `apple.heart_rate → heart_rate` once at registration time; the platform resolves aliases on write so the canonical id lands in storage.
+**Aliases are per-user.** A user declares `apple.heart_rate → heart_rate` once and the platform resolves their submissions through that alias. Other users aren't affected.
+
+Resolve precedence for `(metric_id, user_id)`:
+
+1. user's own aliases (`apple.heart_rate` → `heart_rate`)
+2. user's custom entries with that id
+3. canonical entries with that id
+
+Custom entries can shadow canonical names? No — `createCustomEntry` checks both the user's own customs and the canonical set; collision against either is a 409.
 
 ## Submission contract
 
@@ -81,7 +90,7 @@ Aliases let a vendor declare `apple.heart_rate → heart_rate` once at registrat
 }
 ```
 
-Per-item processing, per-item results in the response. Idempotency keys are required and scoped per `(integration, device, instance)` triple. **First-write-wins**: same key always returns the prior result, regardless of whether the payload matches. When a payload differs from the original, a warning is logged server-side — it's almost always an integration bug, and there's no actionable runtime mitigation either way, so we don't surface it as a distinct API status. Integrations that want to record genuinely different data must use a different key.
+Per-item processing, per-item results in the response. Idempotency keys are required and scoped per `(user_id, integration, device, instance)` — two users may legitimately use the same key for unrelated data. **First-write-wins**: same key always returns the prior result, regardless of whether the payload matches. When a payload differs from the original, a warning is logged server-side — it's almost always an integration bug, and there's no actionable runtime mitigation either way, so we don't surface it as a distinct API status. Integrations that want to record genuinely different data must use a different key.
 
 ## Rejection reasons (closed enum)
 
@@ -106,9 +115,19 @@ The canonical use case: an integration submits `garmin.stress_score`, gets `unkn
 - **Migrations are dialect-portable.** Timestamps and JSON columns are `text` on both; booleans are `integer` 0/1; IDs are `text` UUIDs (app-generated). No DB-side defaults — the application is the single source of truth for `created_at` / `id`.
 - **Source instance normalized.** Optional in the contract, normalized to empty string internally. Both SQLite and Postgres treat NULL as distinct in unique indexes and `= NULL` as "unknown" — neither helps for dedup. Empty string sentinel makes the unique index and equality both work.
 
+## Authentication & user model
+
+- **Schema is multi-user-native.** Every published table (`ingest_log`, `samples`, `events`, `sessions`, `annotations`) carries a `user_id` FK. Custom catalogue entries and aliases are per-user. Idempotency uniqueness is `(user_id, source, idempotency_key)`, so two users can use the same key for unrelated data.
+- **Auth scheme: scrypt-hashed passwords + JOSE JWT (HS256), Bearer tokens.** No expiration on tokens in v1. `JWT_SECRET` set via env; if absent, an ephemeral secret is generated per process.
+- **`users` table fields are optional where they need to be:** `username` is nullable (OIDC-only users may not have one); `password_hash` is nullable (OIDC users authenticate via the IdP). The schema is shaped for OIDC and API tokens to slot in later without migration.
+- **Roles:** `admin` and `user`. Admins can replay across users; everything else is identical.
+- **No registration endpoint in v1.** The only way to create a user is the `ADMIN_USERNAME` + `ADMIN_PASSWORD` env vars, which create exactly one user (the admin). On every startup, the bootstrap reconciles: ensures the user exists, forces `role=admin`, updates the password if the env value differs from the stored hash. This makes the env vars a deliberate "I forgot the password" recovery path.
+- **Without admin env vars, the server still starts** — but no users exist, so every authenticated endpoint returns 401 and login can't succeed. This is fail-on-first-request rather than fail-to-start; the operator sees the problem the moment they try to use anything.
+
 ## Out of scope (for v1)
 
 - Aggregation / cross-source dedup priority engine — the foundation supports it, build later as another derivation
-- Authentication / multi-tenancy — trust-based per source declaration in v1
+- Registration endpoint, OIDC, admin-driven user management — schema is shaped for it; integration is the next pass
+- API tokens (long-lived, machine-friendly) and refresh tokens — current JWTs don't expire, so retry stories work
 - High-frequency raw signals (ECG waveforms), images, audio — blob-storage problems, not time-series
 - FHIR clinical record import — separate concern

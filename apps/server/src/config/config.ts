@@ -19,10 +19,24 @@ const configSchema = z
         url: z.string().optional(),
       })
       .default({ dialect: 'sqlite', filename: './health.db' }),
+    auth: z
+      .object({
+        // Optional. If absent, an ephemeral secret is generated per process —
+        // tokens stop working across restarts, which is fine for dev but
+        // requires setting in production.
+        jwtSecret: z.string().min(16).optional(),
+        // Optional admin bootstrap. If both username and password are set,
+        // the admin user is reconciled on every startup: created if missing,
+        // password updated if it diverges, role forced to 'admin'.
+        adminUsername: z.string().min(1).optional(),
+        adminPassword: z.string().min(8).optional(),
+      })
+      .default({}),
   })
   .default({
     server: { host: '0.0.0.0', port: 3000 },
     database: { dialect: 'sqlite', filename: './health.db' },
+    auth: {},
   });
 
 type Config = z.infer<typeof configSchema>;
@@ -39,6 +53,11 @@ const loadConfig = (): Config => {
       dialect: env['HEALTH_DB_DIALECT'],
       filename: env['HEALTH_DB_FILENAME'],
       url: env['HEALTH_DB_URL'],
+    },
+    auth: {
+      jwtSecret: env['JWT_SECRET'],
+      adminUsername: env['ADMIN_USERNAME'],
+      adminPassword: env['ADMIN_PASSWORD'],
     },
   });
 };

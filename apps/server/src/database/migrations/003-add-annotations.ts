@@ -8,6 +8,7 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
   await db.schema
     .createTable('annotations')
     .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('user_id', 'text', (col) => col.notNull().references('users.id').onDelete('cascade'))
     .addColumn('text', 'text', (col) => col.notNull())
     .addColumn('start_at', 'text', (col) => col.notNull())
     .addColumn('end_at', 'text', (col) => col.notNull())
@@ -20,7 +21,11 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
     .addColumn('created_at', 'text', (col) => col.notNull())
     .execute();
 
-  await db.schema.createIndex('idx_annotations_start_at').on('annotations').column('start_at').execute();
+  await db.schema
+    .createIndex('idx_annotations_user_start')
+    .on('annotations')
+    .columns(['user_id', 'start_at'])
+    .execute();
 };
 
 const down = async (db: Kysely<unknown>): Promise<void> => {

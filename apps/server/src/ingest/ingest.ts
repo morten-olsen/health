@@ -1,5 +1,5 @@
-import { CatalogueService } from '../catalogue/catalogue.ts';
-import type { CatalogueEntry } from '../catalogue/catalogue.ts';
+import { CatalogueService, isSampleEntry } from '../catalogue/catalogue.ts';
+import type { CatalogueEntry, SampleCatalogueEntry } from '../catalogue/catalogue.ts';
 import { DatabaseService } from '../database/database.ts';
 import type {
   AnnotationsTable,
@@ -26,9 +26,30 @@ import type {
 import { validateAnnotation, validateEvent, validateSample, validateSession } from './ingest.validate.ts';
 import type { ValidationResult } from './ingest.validate.ts';
 
+type ResolveCache = Map<string, CatalogueEntry | null>;
+
 type IngestContext = {
   source: IngestSource;
   receivedAt: string;
+  userId: string;
+  resolveCache: ResolveCache;
+};
+
+const resolveCached = async (
+  catalogue: CatalogueService,
+  metricKey: string,
+  userId: string,
+  cache: ResolveCache,
+): Promise<CatalogueEntry | null> => {
+  // Cache keyed by user_id so a single map can serve admin replays that
+  // span multiple users.
+  const key = `${userId}::${metricKey}`;
+  if (cache.has(key)) {
+    return cache.get(key) ?? null;
+  }
+  const entry = await catalogue.resolve(metricKey, userId);
+  cache.set(key, entry);
+  return entry;
 };
 
 // Source instance is optional in the API contract but we normalize to an
@@ -51,13 +72,14 @@ const itemMetric = (item: IngestItem): string | null => {
 
 const buildSampleRow = (
   item: SampleItem,
-  entry: CatalogueEntry,
+  entry: SampleCatalogueEntry,
   ingestLogId: string,
   ctx: IngestContext,
 ): SamplesTable => ({
   id: crypto.randomUUID(),
+  user_id: ctx.userId,
   metric_id: entry.id,
-  kind: entry.kind as 'numeric' | 'categorical' | 'geo' | 'composite',
+  kind: entry.kind,
   start_at: item.start,
   end_at: item.end,
   tz: item.tz ?? null,
@@ -77,6 +99,7 @@ const buildSessionRow = (
   ctx: IngestContext,
 ): SessionsTable => ({
   id: crypto.randomUUID(),
+  user_id: ctx.userId,
   session_type: entry.id,
   start_at: item.start,
   end_at: item.end,
@@ -97,6 +120,7 @@ const buildEventRow = (
   ctx: IngestContext,
 ): EventsTable => ({
   id: crypto.randomUUID(),
+  user_id: ctx.userId,
   metric_id: entry.id,
   at: item.at,
   tz: item.tz ?? null,
@@ -111,6 +135,7 @@ const buildEventRow = (
 
 const buildAnnotationRow = (item: AnnotationItem, ingestLogId: string, ctx: IngestContext): AnnotationsTable => ({
   id: crypto.randomUUID(),
+  user_id: ctx.userId,
   text: item.text,
   start_at: item.start,
   end_at: item.end,
@@ -130,8 +155,13 @@ class IngestService {
     this.#services = services;
   }
 
-  ingest = async (request: IngestRequest): Promise<ItemResult[]> => {
-    const ctx: IngestContext = { source: request.source, receivedAt: new Date().toISOString() };
+  ingest = async (request: IngestRequest, userId: string): Promise<ItemResult[]> => {
+    const ctx: IngestContext = {
+      source: request.source,
+      receivedAt: new Date().toISOString(),
+      userId,
+      resolveCache: new Map(),
+    };
     const results: ItemResult[] = [];
     for (const item of request.items) {
       results.push(await this.#processItem(item, ctx));
@@ -139,7 +169,9 @@ class IngestService {
     return results;
   };
 
-  replay = async (request: ReplayRequest): Promise<ReplayResponse> => {
+  // userId is undefined when an admin replays across all users; defined when
+  // a regular user replays (scoped to their own data).
+  replay = async (request: ReplayRequest, userId: string | undefined): Promise<ReplayResponse> => {
     const db = await this.#services.get(DatabaseService).getInstance();
     const catalogue = this.#services.get(CatalogueService);
 
@@ -148,6 +180,9 @@ class IngestService {
       .selectAll()
       .where('validation_status', '=', 'rejected')
       .limit(request.limit);
+    if (userId) {
+      query = query.where('user_id', '=', userId);
+    }
     if (request.metric) {
       query = query.where('metric', '=', request.metric);
     }
@@ -159,12 +194,13 @@ class IngestService {
     }
     const rows = await query.execute();
 
+    const replayCache: ResolveCache = new Map();
     let promoted = 0;
     let stillRejected = 0;
     for (const row of rows) {
       const item = JSON.parse(row.payload) as IngestItem;
       const metricKey = itemMetric(item);
-      const entry = metricKey ? await catalogue.resolve(metricKey) : null;
+      const entry = metricKey ? await resolveCached(catalogue, metricKey, row.user_id, replayCache) : null;
       const validation = this.#validate(item, entry);
       if (!validation.ok) {
         await db
@@ -182,6 +218,8 @@ class IngestService {
           instance: row.source_instance ?? undefined,
         },
         receivedAt: row.received_at,
+        userId: row.user_id,
+        resolveCache: replayCache,
       });
       await db
         .updateTable('ingest_log')
@@ -203,17 +241,15 @@ class IngestService {
     const existing = await db
       .selectFrom('ingest_log')
       .select(['id', 'payload', 'validation_status', 'rejection_reason', 'published_id'])
+      .where('user_id', '=', ctx.userId)
       .where('source_integration', '=', ctx.source.integration)
       .where('source_device', '=', ctx.source.device)
       .where('source_instance', '=', normalizedInstance(ctx.source.instance))
       .where('idempotency_key', '=', item.idempotency_key)
       .executeTakeFirst();
     if (existing) {
-      // First-write-wins: if the payload differs from the original, log it
-      // server-side (likely an integration bug reusing keys for different
-      // data) but still report the original outcome to the caller. There's
-      // no actionable runtime mitigation either way; surfacing it as a
-      // distinct rejection just adds book-keeping on both sides.
+      // First-write-wins: divergent retries report the original outcome.
+      // See docs/architecture.md for rationale.
       if (existing.payload !== JSON.stringify(item)) {
         console.warn(
           `[ingest] idempotency divergence for ${ctx.source.integration}/${ctx.source.device}` +
@@ -225,13 +261,13 @@ class IngestService {
         : {
             idempotency_key: item.idempotency_key,
             status: 'rejected',
-            reason: (existing.rejection_reason as RejectionReason | null) ?? 'schema_mismatch',
+            reason: existing.rejection_reason ?? 'schema_mismatch',
           };
     }
 
     const catalogue = this.#services.get(CatalogueService);
     const metricKey = itemMetric(item);
-    const entry = metricKey ? await catalogue.resolve(metricKey) : null;
+    const entry = metricKey ? await resolveCached(catalogue, metricKey, ctx.userId, ctx.resolveCache) : null;
     const validation = this.#validate(item, entry);
     return validation.ok ? this.#writeAccepted(item, entry, ctx) : this.#writeRejected(item, entry, validation, ctx);
   };
@@ -254,6 +290,7 @@ class IngestService {
     const ingestLogId = crypto.randomUUID();
     const logRow: IngestLogTable = {
       id: ingestLogId,
+      user_id: ctx.userId,
       received_at: ctx.receivedAt,
       source_integration: ctx.source.integration,
       source_device: ctx.source.device,
@@ -282,6 +319,7 @@ class IngestService {
     const db = await this.#services.get(DatabaseService).getInstance();
     const logRow: IngestLogTable = {
       id: crypto.randomUUID(),
+      user_id: ctx.userId,
       received_at: ctx.receivedAt,
       source_integration: ctx.source.integration,
       source_device: ctx.source.device,
@@ -322,6 +360,9 @@ class IngestService {
       throw new Error(`Internal error: catalogued item type=${item.type} reached publish without entry`);
     }
     if (item.type === 'sample') {
+      if (!isSampleEntry(entry)) {
+        throw new Error(`Internal error: sample item resolved to non-sample entry kind=${entry.kind}`);
+      }
       const row = buildSampleRow(item, entry, ingestLogId, ctx);
       await db.insertInto('samples').values(row).execute();
       return row.id;

@@ -11,6 +11,7 @@ import {
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 
 import { registerRoutes } from './api/api.ts';
+import { AuthService } from './auth/auth.ts';
 import { ConfigService } from './config/config.ts';
 import { Services } from './services/services.ts';
 
@@ -55,6 +56,11 @@ const createApp = async ({ logger = true, services }: CreateAppOptions = {}): Pr
   await fastify.register(scalarReference, { routePrefix: '/api/docs' });
 
   await registerRoutes(fastify, container);
+
+  // Bootstrap admin synchronously during app construction so the server is
+  // never live with a missing-but-configured admin user. No-op when the
+  // ADMIN_USERNAME / ADMIN_PASSWORD env vars aren't set.
+  await container.get(AuthService).bootstrapAdmin();
 
   const start = async (): Promise<void> => {
     await fastify.listen({ host: serverConfig.host, port: serverConfig.port });

@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
+import { createAuthHook } from '../auth/auth.middleware.ts';
 import { CatalogueAliasTargetError, CatalogueDuplicateError, CatalogueService } from '../catalogue/catalogue.ts';
 import {
   catalogueAliasResponseSchema,
@@ -27,7 +28,7 @@ const registerListRoute = (fastify: Parameters<FastifyPluginAsyncZod>[0], catalo
       querystring: listQuerySchema,
       response: { 200: z.object({ entries: z.array(catalogueEntryResponseSchema) }) },
     },
-    handler: async (req) => ({ entries: await catalogue.list(req.query) }),
+    handler: async (req) => ({ entries: await catalogue.list(req.query, req.user.sub) }),
   });
 };
 
@@ -36,7 +37,7 @@ const registerListAliasesRoute = (fastify: Parameters<FastifyPluginAsyncZod>[0],
     method: 'GET',
     url: '/catalogue/aliases',
     schema: { response: { 200: z.object({ aliases: z.array(catalogueAliasResponseSchema) }) } },
-    handler: async () => ({ aliases: await catalogue.listAliases() }),
+    handler: async (req) => ({ aliases: await catalogue.listAliases(req.user.sub) }),
   });
 };
 
@@ -49,7 +50,7 @@ const registerGetRoute = (fastify: Parameters<FastifyPluginAsyncZod>[0], catalog
       response: { 200: catalogueEntryResponseSchema, 404: errorSchema },
     },
     handler: async (req, reply) => {
-      const entry = await catalogue.get(req.params.id);
+      const entry = await catalogue.get(req.params.id, req.user.sub);
       if (!entry) {
         return reply.code(404).send({ error: `Catalogue entry "${req.params.id}" not found` });
       }
@@ -71,7 +72,7 @@ const registerCreateCustomRoute = (
     },
     handler: async (req, reply) => {
       try {
-        const entry = await catalogue.createCustomEntry(req.body);
+        const entry = await catalogue.createCustomEntry(req.body, req.user.sub);
         return reply.code(201).send(entry);
       } catch (err) {
         if (err instanceof CatalogueDuplicateError) {
@@ -93,7 +94,7 @@ const registerCreateAliasRoute = (fastify: Parameters<FastifyPluginAsyncZod>[0],
     },
     handler: async (req, reply) => {
       try {
-        const alias = await catalogue.createAlias(req.body);
+        const alias = await catalogue.createAlias(req.body, req.user.sub);
         return reply.code(201).send(alias);
       } catch (err) {
         if (err instanceof CatalogueAliasTargetError) {
@@ -112,6 +113,10 @@ const createCatalogueRoutes =
   (services: Services): FastifyPluginAsyncZod =>
   async (fastify) => {
     const catalogue = services.get(CatalogueService);
+    // All catalogue endpoints (read and write) require authentication. The
+    // catalogue is per-user — there's no anonymous view.
+    fastify.addHook('onRequest', createAuthHook(services));
+
     registerListRoute(fastify, catalogue);
     registerListAliasesRoute(fastify, catalogue);
     registerGetRoute(fastify, catalogue);

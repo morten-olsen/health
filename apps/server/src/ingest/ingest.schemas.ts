@@ -95,6 +95,9 @@ const ingestResponseSchema = z.object({
 });
 
 const replayRequestSchema = z.object({
+  // Admin-only field. Regular users always replay only their own data;
+  // an explicit user_id here is silently ignored for non-admins.
+  user_id: z.string().optional(),
   metric: z.string().optional(),
   source_integration: z.string().optional(),
   rejection_reason: rejectionReasonSchema.optional(),

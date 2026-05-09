@@ -26,10 +26,13 @@ docker build -t health:local .
 docker run -d --name health \
   -p 3000:3000 \
   -v health-data:/data \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD=change-this-on-first-run \
+  -e JWT_SECRET=$(openssl rand -hex 32) \
   health:local
 ```
 
-The container persists its SQLite database to the named volume `health-data` (mounted at `/data`). Verify it's up:
+The container persists its SQLite database to the named volume `health-data` (mounted at `/data`). On first start, the admin user is created from `ADMIN_USERNAME`/`ADMIN_PASSWORD`; on subsequent starts, the admin user is reconciled (password reset, role forced to `admin`). Verify it's up:
 
 ```bash
 curl http://localhost:3000/api/health
@@ -53,6 +56,9 @@ services:
     environment:
       HEALTH_DB_DIALECT: sqlite
       HEALTH_DB_FILENAME: /data/health.db
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
 
 volumes:
   health-data:
@@ -75,13 +81,33 @@ Or run the production command without watch:
 task start
 ```
 
+## Authentication
+
+Every endpoint except `GET /api/health` and `POST /api/auth/login` requires a Bearer JWT.
+
+```bash
+# Get a token
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"change-this-on-first-run"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+# Use it
+curl http://localhost:3000/api/auth/me -H "Authorization: Bearer $TOKEN"
+```
+
+**v1 limitation:** there is no `POST /api/auth/register` endpoint. The only way to create users in v1 is the `ADMIN_USERNAME` + `ADMIN_PASSWORD` env vars, which create exactly one user (the admin). OIDC and admin-driven user creation are planned for later versions. The user/auth schema is shaped for that future — `username` and `password_hash` on the `users` table are nullable specifically so OIDC-only users (no password) and future API-token users (no username) fit naturally.
+
+The admin bootstrap is **reconciliatory** — every startup ensures the env-vared user exists with `role=admin` and the env-var password. Forgot the admin password? Change `ADMIN_PASSWORD` in your env, restart the container.
+
 ## Sending data
 
-All data goes through one endpoint: `POST /api/ingest`. It accepts a polymorphic batch of four item types — **samples**, **sessions**, **events**, and **annotations**.
+All data goes through one endpoint: `POST /api/ingest`. It accepts a polymorphic batch of four item types — **samples**, **sessions**, **events**, and **annotations**. **Authentication required** — pass a Bearer token in the `Authorization` header.
 
 ```bash
 curl -X POST http://localhost:3000/api/ingest \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "source": {
       "integration": "gadgetbridge",
@@ -166,11 +192,12 @@ Every sample's value shape is determined by its catalogue entry's `kind`:
 
 ## Adding custom metrics
 
-The shipped canonical catalogue (~33 entries) covers the obvious staples. When a vendor exposes something more specific, register it as a custom catalogue entry — vendor-namespaced so it never collides with canonical or other vendors:
+The shipped canonical catalogue (~33 entries) covers the obvious staples. When a vendor exposes something more specific, register it as a custom catalogue entry — vendor-namespaced so it never collides with canonical or other users' customs. **Custom entries are per-user**: each user can register their own without bothering the admin, and entries are invisible across users.
 
 ```bash
 curl -X POST http://localhost:3000/api/catalogue/custom \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "id": "garmin.stress_score",
     "kind": "numeric",
@@ -185,19 +212,23 @@ If submissions arrived **before** you registered the type, they're sitting in th
 ```bash
 curl -X POST http://localhost:3000/api/replay \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{ "rejection_reason": "unknown_metric" }'
 # { "attempted": 142, "promoted": 142, "still_rejected": 0 }
 ```
+
+(Regular users implicitly replay only their own data. Admins can pass an explicit `"user_id": "..."` to target one user, or omit it to span everyone.)
 
 You can also register **aliases** so a vendor's native metric name resolves to a canonical id on write:
 
 ```bash
 curl -X POST http://localhost:3000/api/catalogue/aliases \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{ "alias": "apple.heart_rate", "canonical_id": "heart_rate" }'
 ```
 
-After this, samples submitted as `apple.heart_rate` are stored as canonical `heart_rate` — the integration doesn't have to know the canonical names if it declares aliases up front.
+After this, **your** submissions (just yours — aliases are per-user) using `apple.heart_rate` are stored as canonical `heart_rate`. The integration doesn't have to know the canonical names if it declares aliases up front.
 
 Browse the full catalogue at <http://localhost:3000/api/catalogue> or via `GET /api/catalogue/:id`.
 
@@ -205,13 +236,16 @@ Browse the full catalogue at <http://localhost:3000/api/catalogue> or via `GET /
 
 All configuration is via environment variables.
 
-| Variable             | Default                                             | Description                                                      |
-| -------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
-| `HOST`               | `0.0.0.0`                                           | Bind address                                                     |
-| `PORT`               | `3000`                                              | TCP port                                                         |
-| `HEALTH_DB_DIALECT`  | `sqlite`                                            | `sqlite` or `postgres`                                           |
-| `HEALTH_DB_FILENAME` | `./health.db` (source) / `/data/health.db` (Docker) | SQLite path. `:memory:` for ephemeral.                           |
-| `HEALTH_DB_URL`      | —                                                   | Postgres connection string. Required when dialect is `postgres`. |
+| Variable             | Default                                             | Description                                                                                                                           |
+| -------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `HOST`               | `0.0.0.0`                                           | Bind address                                                                                                                          |
+| `PORT`               | `3000`                                              | TCP port                                                                                                                              |
+| `HEALTH_DB_DIALECT`  | `sqlite`                                            | `sqlite` or `postgres`                                                                                                                |
+| `HEALTH_DB_FILENAME` | `./health.db` (source) / `/data/health.db` (Docker) | SQLite path. `:memory:` for ephemeral.                                                                                                |
+| `HEALTH_DB_URL`      | —                                                   | Postgres connection string. Required when dialect is `postgres`.                                                                      |
+| `JWT_SECRET`         | (auto, ephemeral)                                   | Secret for signing JWTs. If absent, a random secret is generated per process — tokens reset on every restart. Set this in production. |
+| `ADMIN_USERNAME`     | —                                                   | Bootstrap admin username. Required for v1 since there is no registration endpoint.                                                    |
+| `ADMIN_PASSWORD`     | —                                                   | Bootstrap admin password. Reconciled on every startup — change here to reset a forgotten admin password.                              |
 
 ### SQLite vs Postgres
 
@@ -259,7 +293,9 @@ The full machine-readable spec is at `/api/docs/openapi.json`.
 Things deliberately out of scope for v1, in rough priority order for later:
 
 - **Cross-source aggregation / dedup.** "During this run, prefer Garmin HR over Oura HR." The data foundation supports it; the engine isn't built yet.
-- **Authentication / multi-tenancy.** Trust-based per source declaration in v1. Run it behind a reverse proxy or VPN.
+- **Registration & user management.** Only the bootstrap admin exists in v1. OIDC-based signup and admin-driven user creation are next.
+- **API tokens (long-lived, machine-friendly).** Integrations currently log in with username/password and use the resulting JWT.
+- **Refresh tokens / token expiration.** Tokens don't expire in v1.
 - **High-frequency raw waveforms** (ECG at 250 Hz, audio). Different storage problem.
 - **Images, videos, attachments.** Same.
 - **FHIR clinical record import.** Different problem.

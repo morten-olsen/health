@@ -3,9 +3,25 @@
 // supplies them on insert — no DB-side defaults — so plain string suffices.
 type Timestamp = string;
 
+type UserRole = 'admin' | 'user';
+
+type UsersTable = {
+  id: string;
+  username: string | null;
+  password_hash: string | null;
+  role: UserRole;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
 // Catalogue entry kind — discriminates the value shape for samples, plus
 // special kinds for session types and event metrics.
 type CatalogueKind = 'numeric' | 'categorical' | 'geo' | 'composite' | 'session' | 'event';
+
+// The subset of CatalogueKind that's valid on a sample. Used for the
+// `samples.kind` column and for narrowing a CatalogueEntry to one that
+// `validateSample` has already accepted.
+type SampleKind = Extract<CatalogueKind, 'numeric' | 'categorical' | 'geo' | 'composite'>;
 
 type CatalogueNamespace = 'canonical' | 'custom';
 
@@ -26,6 +42,7 @@ type RejectionReason =
 
 type CatalogueEntriesTable = {
   id: string;
+  user_id: string | null; // null = canonical (shared); set = custom owned by user
   kind: CatalogueKind;
   namespace: CatalogueNamespace;
   version: number;
@@ -38,13 +55,15 @@ type CatalogueEntriesTable = {
 };
 
 type CatalogueAliasesTable = {
-  alias: string; // PK; e.g. "apple.heart_rate"
-  canonical_id: string; // FK -> catalogue_entries.id
+  alias: string;
+  user_id: string; // aliases are always per-user
+  canonical_id: string;
   created_at: Timestamp;
 };
 
 type IngestLogTable = {
   id: string;
+  user_id: string;
   received_at: Timestamp;
   source_integration: string;
   source_device: string;
@@ -61,8 +80,9 @@ type IngestLogTable = {
 
 type SamplesTable = {
   id: string;
+  user_id: string;
   metric_id: string;
-  kind: 'numeric' | 'categorical' | 'geo' | 'composite';
+  kind: SampleKind;
   start_at: Timestamp;
   end_at: Timestamp;
   tz: string | null;
@@ -77,6 +97,7 @@ type SamplesTable = {
 
 type EventsTable = {
   id: string;
+  user_id: string;
   metric_id: string;
   at: Timestamp;
   tz: string | null;
@@ -91,6 +112,7 @@ type EventsTable = {
 
 type SessionsTable = {
   id: string;
+  user_id: string;
   session_type: string;
   start_at: Timestamp;
   end_at: Timestamp;
@@ -106,6 +128,7 @@ type SessionsTable = {
 
 type AnnotationsTable = {
   id: string;
+  user_id: string;
   text: string;
   start_at: Timestamp;
   end_at: Timestamp;
@@ -119,6 +142,7 @@ type AnnotationsTable = {
 };
 
 type DatabaseSchema = {
+  users: UsersTable;
   catalogue_entries: CatalogueEntriesTable;
   catalogue_aliases: CatalogueAliasesTable;
   ingest_log: IngestLogTable;
@@ -139,7 +163,10 @@ export type {
   IngestItemType,
   IngestLogTable,
   RejectionReason,
+  SampleKind,
   SamplesTable,
   SessionsTable,
+  UserRole,
+  UsersTable,
   ValidationStatus,
 };
