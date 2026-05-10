@@ -1,5 +1,7 @@
 import { z } from 'zod/v4';
 
+import type { RejectionReason } from '../database/database.types.ts';
+
 const sourceSchema = z.object({
   integration: z.string().min(1).max(100),
   device: z.string().min(1).max(100),
@@ -11,9 +13,11 @@ const tzSchema = z.string().min(1).max(60).optional();
 const idempotencyKeySchema = z.string().min(1).max(200);
 const metricIdSchema = z.string().min(1).max(200);
 
-// Permissive value schema — actual shape validation happens against the
-// resolved catalogue entry inside IngestService.
-const valuePayloadSchema = z.record(z.string(), z.unknown());
+// Sample value is polymorphic by the resolved catalogue entry's kind:
+// numeric → bare number, categorical → bare string, geo/composite → object.
+// Zod just enforces "is something"; the per-kind check happens against the
+// catalogue entry inside CatalogueService/validateSample.
+const sampleValueSchema = z.unknown();
 
 const sampleItemSchema = z.object({
   type: z.literal('sample'),
@@ -22,7 +26,7 @@ const sampleItemSchema = z.object({
   start: isoInstantSchema,
   end: isoInstantSchema,
   tz: tzSchema,
-  value: valuePayloadSchema,
+  value: sampleValueSchema,
 });
 
 const sessionItemSchema = z.object({
@@ -66,7 +70,9 @@ const ingestRequestSchema = z.object({
   items: z.array(ingestItemSchema).min(1).max(10000),
 });
 
-const rejectionReasonSchema = z.enum([
+// `as const satisfies` pins the Zod enum to the RejectionReason type at
+// compile time — drift in either direction breaks the build.
+const REJECTION_REASONS = [
   'unknown_metric',
   'invalid_value_kind',
   'schema_mismatch',
@@ -74,7 +80,9 @@ const rejectionReasonSchema = z.enum([
   'missing_field',
   'invalid_timestamp',
   'catalogue_deprecated',
-]);
+] as const satisfies readonly RejectionReason[];
+
+const rejectionReasonSchema = z.enum(REJECTION_REASONS);
 
 const itemResultSchema = z.discriminatedUnion('status', [
   z.object({

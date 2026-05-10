@@ -46,9 +46,9 @@ type CatalogueEntriesTable = {
   kind: CatalogueKind;
   namespace: CatalogueNamespace;
   version: number;
-  unit: string | null;
   description: string | null;
-  shape: string; // JSON; kind-specific extras (range, enum values, composite components)
+  config: string; // JSON; per-kind shape — see CatalogueEntry in catalogue/catalogue.ts
+
   deprecated: number; // 0 | 1
   created_at: Timestamp;
   updated_at: Timestamp;

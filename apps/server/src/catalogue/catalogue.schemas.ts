@@ -4,26 +4,6 @@ const catalogueKindSchema = z.enum(['numeric', 'categorical', 'geo', 'composite'
 
 const catalogueNamespaceSchema = z.enum(['canonical', 'custom']);
 
-const numericShapeSchema = z.object({
-  range: z
-    .object({
-      min: z.number(),
-      max: z.number(),
-    })
-    .refine((r) => r.min < r.max, { message: 'range.min must be less than range.max' })
-    .optional(),
-});
-
-const categoricalShapeSchema = z.object({
-  values: z.array(z.string().min(1)).min(1),
-});
-
-const compositeShapeSchema = z.object({
-  components: z.record(z.string().min(1), z.string().min(1)),
-});
-
-const emptyShapeSchema = z.object({}).strict();
-
 // Custom catalogue ID must be vendor-prefixed: `<vendor>.<metric>`. This
 // keeps user-registered entries cleanly namespaced apart from canonical IDs.
 const customIdSchema = z
@@ -40,43 +20,82 @@ const aliasSchema = z
     'Aliases must match <vendor>.<name> with lowercase ASCII, digits, and underscores',
   );
 
+const rangeSchema = z
+  .object({ min: z.number(), max: z.number() })
+  .refine((r) => r.min < r.max, { message: 'range.min must be less than range.max' });
+
+const numericConfigSchema = z.object({
+  unit: z.string().min(1),
+  range: rangeSchema.optional(),
+});
+
+const categoricalConfigSchema = z.object({
+  values: z.array(z.string().min(1)).min(1),
+});
+
+const geoConfigSchema = z.object({}).strict();
+
+const compositeComponentSchema = z.object({
+  unit: z.string().min(1),
+  range: rangeSchema.optional(),
+});
+
+const compositeConfigSchema = z.object({
+  components: z.record(z.string().min(1), compositeComponentSchema),
+});
+
+const sessionConfigSchema = z.object({}).strict();
+
+// Ajv meta-validates the JSON Schema; Zod just enforces "is an object".
+const eventConfigSchema = z.object({
+  schema: z.record(z.string(), z.unknown()),
+});
+
+type Range = z.infer<typeof rangeSchema>;
+type NumericConfig = z.infer<typeof numericConfigSchema>;
+type CategoricalConfig = z.infer<typeof categoricalConfigSchema>;
+type GeoConfig = z.infer<typeof geoConfigSchema>;
+type CompositeComponent = z.infer<typeof compositeComponentSchema>;
+type CompositeConfig = z.infer<typeof compositeConfigSchema>;
+type SessionConfig = z.infer<typeof sessionConfigSchema>;
+type EventConfig = z.infer<typeof eventConfigSchema>;
+
 const createCustomEntrySchema = z.discriminatedUnion('kind', [
   z.object({
     id: customIdSchema,
     kind: z.literal('numeric'),
-    unit: z.string().min(1),
     description: z.string().optional(),
-    shape: numericShapeSchema.default({}),
+    config: numericConfigSchema,
   }),
   z.object({
     id: customIdSchema,
     kind: z.literal('categorical'),
     description: z.string().optional(),
-    shape: categoricalShapeSchema,
+    config: categoricalConfigSchema,
   }),
   z.object({
     id: customIdSchema,
     kind: z.literal('geo'),
     description: z.string().optional(),
-    shape: emptyShapeSchema.default({}),
+    config: geoConfigSchema.default({}),
   }),
   z.object({
     id: customIdSchema,
     kind: z.literal('composite'),
     description: z.string().optional(),
-    shape: compositeShapeSchema,
+    config: compositeConfigSchema,
   }),
   z.object({
     id: customIdSchema,
     kind: z.literal('session'),
     description: z.string().optional(),
-    shape: emptyShapeSchema.default({}),
+    config: sessionConfigSchema.default({}),
   }),
   z.object({
     id: customIdSchema,
     kind: z.literal('event'),
     description: z.string().optional(),
-    shape: emptyShapeSchema.default({}),
+    config: eventConfigSchema,
   }),
 ]);
 
@@ -85,18 +104,24 @@ const createAliasInputSchema = z.object({
   canonical_id: z.string().min(1),
 });
 
-const catalogueEntryResponseSchema = z.object({
+const baseEntryFieldsSchema = z.object({
   id: z.string(),
-  kind: catalogueKindSchema,
   namespace: catalogueNamespaceSchema,
   version: z.number().int(),
-  unit: z.string().nullable(),
   description: z.string().nullable(),
-  shape: z.record(z.string(), z.unknown()),
   deprecated: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
 });
+
+const catalogueEntryResponseSchema = z.discriminatedUnion('kind', [
+  baseEntryFieldsSchema.extend({ kind: z.literal('numeric'), config: numericConfigSchema }),
+  baseEntryFieldsSchema.extend({ kind: z.literal('categorical'), config: categoricalConfigSchema }),
+  baseEntryFieldsSchema.extend({ kind: z.literal('geo'), config: geoConfigSchema }),
+  baseEntryFieldsSchema.extend({ kind: z.literal('composite'), config: compositeConfigSchema }),
+  baseEntryFieldsSchema.extend({ kind: z.literal('session'), config: sessionConfigSchema }),
+  baseEntryFieldsSchema.extend({ kind: z.literal('event'), config: eventConfigSchema }),
+]);
 
 const catalogueAliasResponseSchema = z.object({
   alias: z.string(),
@@ -114,7 +139,20 @@ z.globalRegistry.add(catalogueAliasResponseSchema, { id: 'CatalogueAlias' });
 z.globalRegistry.add(createCustomEntrySchema, { id: 'CreateCustomEntry' });
 z.globalRegistry.add(createAliasInputSchema, { id: 'CreateAlias' });
 
-export type { CatalogueAliasResponse, CatalogueEntryResponse, CreateAliasInput, CreateCustomEntryInput };
+export type {
+  CatalogueAliasResponse,
+  CatalogueEntryResponse,
+  CategoricalConfig,
+  CompositeComponent,
+  CompositeConfig,
+  CreateAliasInput,
+  CreateCustomEntryInput,
+  EventConfig,
+  GeoConfig,
+  NumericConfig,
+  Range,
+  SessionConfig,
+};
 export {
   catalogueAliasResponseSchema,
   catalogueEntryResponseSchema,

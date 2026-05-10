@@ -29,6 +29,7 @@ describe('GET /api/catalogue', () => {
     expect(body.entries.find((e) => e.id === 'location')).toMatchObject({ kind: 'geo' });
     expect(body.entries.find((e) => e.id === 'blood_pressure')).toMatchObject({ kind: 'composite' });
     expect(body.entries.find((e) => e.id === 'run')).toMatchObject({ kind: 'session' });
+    expect(body.entries.find((e) => e.id === 'strength_set')).toMatchObject({ kind: 'event' });
   });
 
   it('rejects unauthenticated requests', async () => {
@@ -55,10 +56,23 @@ describe('GET /api/catalogue', () => {
 });
 
 describe('GET /api/catalogue/:id', () => {
-  it('returns a canonical entry', async () => {
+  it('returns a numeric canonical entry with unit + range in config', async () => {
     const res = await t.inject({ method: 'GET', url: '/api/catalogue/heart_rate', headers: admin.headers });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body)).toMatchObject({ id: 'heart_rate', kind: 'numeric', unit: 'bpm' });
+    expect(JSON.parse(res.body)).toMatchObject({
+      id: 'heart_rate',
+      kind: 'numeric',
+      config: { unit: 'bpm', range: { min: 20, max: 250 } },
+    });
+  });
+
+  it('returns a composite entry with per-component units', async () => {
+    const res = await t.inject({ method: 'GET', url: '/api/catalogue/blood_pressure', headers: admin.headers });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as { kind: string; config: { components: Record<string, { unit: string }> } };
+    expect(body.kind).toBe('composite');
+    expect(body.config.components['systolic']?.unit).toBe('mmHg');
+    expect(body.config.components['diastolic']?.unit).toBe('mmHg');
   });
 
   it('returns 404 for unknown entries', async () => {
@@ -80,9 +94,8 @@ describe('POST /api/catalogue/custom', () => {
       payload: {
         id: 'garmin.stress_score',
         kind: 'numeric',
-        unit: 'score',
         description: 'Garmin stress score (0–100)',
-        shape: { range: { min: 0, max: 100 } },
+        config: { unit: 'score', range: { min: 0, max: 100 } },
       },
     });
     expect(res.statusCode).toBe(201);
@@ -90,8 +103,34 @@ describe('POST /api/catalogue/custom', () => {
       id: 'garmin.stress_score',
       namespace: 'custom',
       kind: 'numeric',
-      unit: 'score',
+      config: { unit: 'score' },
     });
+  });
+
+  it('registers a custom event entry with a JSON Schema payload contract', async () => {
+    const res = await t.inject({
+      method: 'POST',
+      url: '/api/catalogue/custom',
+      headers: admin.headers,
+      payload: {
+        id: 'myapp.hiit_round',
+        kind: 'event',
+        description: 'One round of a HIIT workout',
+        config: {
+          schema: {
+            type: 'object',
+            properties: {
+              movement: { type: 'string' },
+              work_seconds: { type: 'number', minimum: 0 },
+              rest_seconds: { type: 'number', minimum: 0 },
+            },
+            required: ['movement', 'work_seconds'],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(201);
   });
 
   it('rejects collisions with the same user', async () => {
@@ -99,7 +138,7 @@ describe('POST /api/catalogue/custom', () => {
       method: 'POST',
       url: '/api/catalogue/custom',
       headers: admin.headers,
-      payload: { id: 'foo.bar', kind: 'numeric', unit: 'x' },
+      payload: { id: 'foo.bar', kind: 'numeric', config: { unit: 'x' } },
     });
     expect(first.statusCode).toBe(201);
 
@@ -107,7 +146,7 @@ describe('POST /api/catalogue/custom', () => {
       method: 'POST',
       url: '/api/catalogue/custom',
       headers: admin.headers,
-      payload: { id: 'foo.bar', kind: 'numeric', unit: 'x' },
+      payload: { id: 'foo.bar', kind: 'numeric', config: { unit: 'x' } },
     });
     expect(dup.statusCode).toBe(409);
   });
@@ -117,7 +156,38 @@ describe('POST /api/catalogue/custom', () => {
       method: 'POST',
       url: '/api/catalogue/custom',
       headers: admin.headers,
-      payload: { id: 'no_namespace', kind: 'numeric', unit: 'x' },
+      payload: { id: 'no_namespace', kind: 'numeric', config: { unit: 'x' } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects event schemas with external $ref', async () => {
+    const res = await t.inject({
+      method: 'POST',
+      url: '/api/catalogue/custom',
+      headers: admin.headers,
+      payload: {
+        id: 'evil.metric',
+        kind: 'event',
+        config: {
+          schema: { type: 'object', properties: { foo: { $ref: 'https://evil.example/schema.json' } } },
+        },
+      },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toMatch(/External \$ref/);
+  });
+
+  it('rejects event entries with malformed JSON Schema', async () => {
+    const res = await t.inject({
+      method: 'POST',
+      url: '/api/catalogue/custom',
+      headers: admin.headers,
+      payload: {
+        id: 'bad.metric',
+        kind: 'event',
+        config: { schema: { type: 'not_a_real_type' } },
+      },
     });
     expect(res.statusCode).toBe(400);
   });
@@ -168,8 +238,7 @@ describe('User isolation — custom entries are scoped per user', () => {
       payload: {
         id: 'garmin.stress_score',
         kind: 'numeric',
-        unit: 'score',
-        shape: { range: { min: 0, max: 100 } },
+        config: { unit: 'score', range: { min: 0, max: 100 } },
       },
     });
     expect(aliceRes.statusCode).toBe(201);
@@ -181,8 +250,7 @@ describe('User isolation — custom entries are scoped per user', () => {
       payload: {
         id: 'garmin.stress_score',
         kind: 'numeric',
-        unit: 'score',
-        shape: { range: { min: 0, max: 50 } },
+        config: { unit: 'score', range: { min: 0, max: 50 } },
       },
     });
     expect(bobRes.statusCode).toBe(201);
@@ -196,7 +264,7 @@ describe('User isolation — custom entries are scoped per user', () => {
       method: 'POST',
       url: '/api/catalogue/custom',
       headers: bob.headers,
-      payload: { id: 'bob.private_metric', kind: 'numeric', unit: 'x' },
+      payload: { id: 'bob.private_metric', kind: 'numeric', config: { unit: 'x' } },
     });
 
     const list = await t.inject({

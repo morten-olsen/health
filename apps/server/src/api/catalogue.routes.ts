@@ -2,7 +2,12 @@ import { z } from 'zod/v4';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { createAuthHook } from '../auth/auth.middleware.ts';
-import { CatalogueAliasTargetError, CatalogueDuplicateError, CatalogueService } from '../catalogue/catalogue.ts';
+import {
+  CatalogueAliasTargetError,
+  CatalogueDuplicateError,
+  CatalogueSchemaError,
+  CatalogueService,
+} from '../catalogue/catalogue.ts';
 import {
   catalogueAliasResponseSchema,
   catalogueEntryResponseSchema,
@@ -68,13 +73,16 @@ const registerCreateCustomRoute = (
     url: '/catalogue/custom',
     schema: {
       body: createCustomEntrySchema,
-      response: { 201: catalogueEntryResponseSchema, 409: errorSchema },
+      response: { 201: catalogueEntryResponseSchema, 400: errorSchema, 409: errorSchema },
     },
     handler: async (req, reply) => {
       try {
         const entry = await catalogue.createCustomEntry(req.body, req.user.sub);
         return reply.code(201).send(entry);
       } catch (err) {
+        if (err instanceof CatalogueSchemaError) {
+          return reply.code(400).send({ error: err.message });
+        }
         if (err instanceof CatalogueDuplicateError) {
           return reply.code(409).send({ error: err.message });
         }

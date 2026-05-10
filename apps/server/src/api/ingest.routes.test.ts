@@ -44,7 +44,7 @@ describe('POST /api/ingest — sample items', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('accepts a valid numeric heart-rate sample', async () => {
+  it('accepts a valid numeric heart-rate sample (bare-value wire)', async () => {
     const result = await ingest([
       {
         type: 'sample',
@@ -53,7 +53,7 @@ describe('POST /api/ingest — sample items', () => {
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
         tz: 'Europe/Copenhagen',
-        value: { value: 142, unit: 'bpm' },
+        value: 142,
       },
     ]);
     expect(result.statusCode).toBe(200);
@@ -69,14 +69,14 @@ describe('POST /api/ingest — sample items', () => {
         metric: 'garmin.stress_score',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 50 },
+        value: 50,
       },
     ]);
     expect(result.body.results[0]?.status).toBe('rejected');
     expect(result.body.results[0]?.reason).toBe('unknown_metric');
   });
 
-  it('rejects a value outside the catalogue range', async () => {
+  it('rejects a numeric value outside the catalogue range', async () => {
     const result = await ingest([
       {
         type: 'sample',
@@ -84,10 +84,24 @@ describe('POST /api/ingest — sample items', () => {
         metric: 'heart_rate',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 5000, unit: 'bpm' },
+        value: 5000,
       },
     ]);
     expect(result.body.results[0]?.reason).toBe('out_of_range');
+  });
+
+  it('rejects a numeric value of the wrong type', async () => {
+    const result = await ingest([
+      {
+        type: 'sample',
+        idempotency_key: 'k2b',
+        metric: 'heart_rate',
+        start: '2026-05-09T17:02:00Z',
+        end: '2026-05-09T17:02:00Z',
+        value: '142',
+      },
+    ]);
+    expect(result.body.results[0]?.reason).toBe('schema_mismatch');
   });
 
   it('rejects a categorical value not in the allowed set', async () => {
@@ -98,10 +112,24 @@ describe('POST /api/ingest — sample items', () => {
         metric: 'sleep_stage',
         start: '2026-05-09T23:00:00Z',
         end: '2026-05-09T23:30:00Z',
-        value: { value: 'snoring' },
+        value: 'snoring',
       },
     ]);
     expect(result.body.results[0]?.reason).toBe('schema_mismatch');
+  });
+
+  it('accepts a categorical value (bare string wire)', async () => {
+    const result = await ingest([
+      {
+        type: 'sample',
+        idempotency_key: 'k3-good',
+        metric: 'sleep_stage',
+        start: '2026-05-09T23:00:00Z',
+        end: '2026-05-09T23:30:00Z',
+        value: 'deep',
+      },
+    ]);
+    expect(result.body.results[0]?.status).toBe('accepted');
   });
 
   it('accepts a geo sample', async () => {
@@ -129,10 +157,10 @@ describe('POST /api/ingest — sample items', () => {
         value: { lat: 200, lng: 0 },
       },
     ]);
-    expect(result.body.results[0]?.reason).toBe('schema_mismatch');
+    expect(result.body.results[0]?.reason).toBe('out_of_range');
   });
 
-  it('accepts a composite blood-pressure sample', async () => {
+  it('accepts a composite blood-pressure sample (bare values, no `values` wrapper)', async () => {
     const result = await ingest([
       {
         type: 'sample',
@@ -140,10 +168,24 @@ describe('POST /api/ingest — sample items', () => {
         metric: 'blood_pressure',
         start: '2026-05-09T08:00:00Z',
         end: '2026-05-09T08:00:00Z',
-        value: { values: { systolic: 120, diastolic: 80 } },
+        value: { systolic: 120, diastolic: 80 },
       },
     ]);
     expect(result.body.results[0]?.status).toBe('accepted');
+  });
+
+  it('rejects a composite sample with a missing component', async () => {
+    const result = await ingest([
+      {
+        type: 'sample',
+        idempotency_key: 'bp-2',
+        metric: 'blood_pressure',
+        start: '2026-05-09T08:00:00Z',
+        end: '2026-05-09T08:00:00Z',
+        value: { systolic: 120 },
+      },
+    ]);
+    expect(result.body.results[0]?.reason).toBe('missing_field');
   });
 
   it('rejects when end is before start', async () => {
@@ -154,7 +196,7 @@ describe('POST /api/ingest — sample items', () => {
         metric: 'heart_rate',
         start: '2026-05-09T17:05:00Z',
         end: '2026-05-09T17:00:00Z',
-        value: { value: 80 },
+        value: 80,
       },
     ]);
     expect(result.body.results[0]?.reason).toBe('invalid_timestamp');
@@ -189,17 +231,56 @@ describe('POST /api/ingest — sessions, events, annotations', () => {
     expect(result.body.results[0]?.reason).toBe('invalid_value_kind');
   });
 
-  it('accepts a medication event', async () => {
+  it('accepts a medication event with unit-as-data', async () => {
     const result = await ingest([
       {
         type: 'event',
         idempotency_key: 'med-1',
         metric: 'medication_taken',
         at: '2026-05-09T08:00:00Z',
-        payload: { name: 'ibuprofen', dose_mg: 400 },
+        payload: { name: 'ibuprofen', dose_amount: 400, dose_unit: 'mg' },
       },
     ]);
     expect(result.body.results[0]?.status).toBe('accepted');
+  });
+
+  it('rejects a medication event missing the required name field', async () => {
+    const result = await ingest([
+      {
+        type: 'event',
+        idempotency_key: 'med-bad-1',
+        metric: 'medication_taken',
+        at: '2026-05-09T08:00:00Z',
+        payload: { dose_amount: 400, dose_unit: 'mg' },
+      },
+    ]);
+    expect(result.body.results[0]?.reason).toBe('missing_field');
+  });
+
+  it('accepts a strength_set event (weight in catalogue-declared kg, no weight_unit field)', async () => {
+    const result = await ingest([
+      {
+        type: 'event',
+        idempotency_key: 'strength-1',
+        metric: 'strength_set',
+        at: '2026-05-09T18:15:00Z',
+        payload: { exercise: 'back_squat', reps: 5, weight: 100, rpe: 8 },
+      },
+    ]);
+    expect(result.body.results[0]?.status).toBe('accepted');
+  });
+
+  it('rejects a strength_set event with reps outside catalogue range', async () => {
+    const result = await ingest([
+      {
+        type: 'event',
+        idempotency_key: 'strength-bad-1',
+        metric: 'strength_set',
+        at: '2026-05-09T18:15:00Z',
+        payload: { exercise: 'back_squat', reps: 0, weight: 100 },
+      },
+    ]);
+    expect(result.body.results[0]?.reason).toBe('out_of_range');
   });
 
   it('accepts a ranged annotation with tags', async () => {
@@ -238,7 +319,7 @@ describe('POST /api/ingest — idempotency', () => {
     metric: 'heart_rate',
     start: '2026-05-09T17:02:00Z',
     end: '2026-05-09T17:02:00Z',
-    value: { value: 80, unit: 'bpm' },
+    value: 80,
   };
 
   it('returns the same id for an identical retry', async () => {
@@ -251,7 +332,7 @@ describe('POST /api/ingest — idempotency', () => {
 
   it('first-write-wins when a retry uses the same key with a different payload', async () => {
     const first = await ingest([sample]);
-    const divergent = await ingest([{ ...sample, value: { value: 99, unit: 'bpm' } }]);
+    const divergent = await ingest([{ ...sample, value: 99 }]);
     expect(divergent.body.results[0]?.status).toBe('accepted');
     expect(divergent.body.results[0]?.id).toBe(first.body.results[0]?.id);
   });
@@ -277,7 +358,7 @@ describe('POST /api/ingest — mixed batches', () => {
         metric: 'heart_rate',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 142, unit: 'bpm' },
+        value: 142,
       },
       {
         type: 'sample',
@@ -285,7 +366,7 @@ describe('POST /api/ingest — mixed batches', () => {
         metric: 'totally_unknown',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 1 },
+        value: 1,
       },
       {
         type: 'session',
@@ -314,7 +395,7 @@ describe('POST /api/replay', () => {
         metric: 'garmin.stress_score',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 42 },
+        value: 42,
       },
     ]);
     expect(ingestRejected.body.results[0]?.status).toBe('rejected');
@@ -326,8 +407,7 @@ describe('POST /api/replay', () => {
       payload: {
         id: 'garmin.stress_score',
         kind: 'numeric',
-        unit: 'score',
-        shape: { range: { min: 0, max: 100 } },
+        config: { unit: 'score', range: { min: 0, max: 100 } },
       },
     });
     expect(register.statusCode).toBe(201);
@@ -346,7 +426,6 @@ describe('POST /api/replay', () => {
     const alice = await t.createUser('alice', 'password-alice');
     const bob = await t.createUser('bob', 'password-bob');
 
-    // Both submit unknown metrics
     await ingestAs(alice, [
       {
         type: 'sample',
@@ -354,7 +433,7 @@ describe('POST /api/replay', () => {
         metric: 'unknown.alice',
         start: '2026-05-09T17:00:00Z',
         end: '2026-05-09T17:00:00Z',
-        value: { value: 1 },
+        value: 1,
       },
     ]);
     await ingestAs(bob, [
@@ -364,7 +443,7 @@ describe('POST /api/replay', () => {
         metric: 'unknown.bob',
         start: '2026-05-09T17:00:00Z',
         end: '2026-05-09T17:00:00Z',
-        value: { value: 2 },
+        value: 2,
       },
     ]);
 
@@ -396,7 +475,7 @@ describe('POST /api/ingest — alias resolution', () => {
         metric: 'apple.heart_rate',
         start: '2026-05-09T17:02:00Z',
         end: '2026-05-09T17:02:00Z',
-        value: { value: 70, unit: 'bpm' },
+        value: 70,
       },
     ]);
     expect(result.body.results[0]?.status).toBe('accepted');

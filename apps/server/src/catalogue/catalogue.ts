@@ -7,36 +7,54 @@ import type {
   CatalogueKind,
   CatalogueNamespace,
   DatabaseSchema,
-  SampleKind,
+  RejectionReason,
 } from '../database/database.types.ts';
 import { Services } from '../services/services.ts';
 
+import { assertValidEventSchema, CatalogueSchemaError, validateEventPayload } from './catalogue.json-schema.ts';
 import type {
   CatalogueAliasResponse,
   CatalogueEntryResponse,
+  CategoricalConfig,
+  CompositeConfig,
   CreateAliasInput,
   CreateCustomEntryInput,
+  EventConfig,
+  GeoConfig,
+  NumericConfig,
+  SessionConfig,
 } from './catalogue.schemas.ts';
+import {
+  fail,
+  validateCategorical,
+  validateComposite,
+  validateGeo,
+  validateNumeric,
+} from './catalogue.value-validate.ts';
+import type { ValidationResult } from './catalogue.value-validate.ts';
 
-type CatalogueEntry = {
+type JsonSchema = Record<string, unknown>;
+
+type CatalogueEntryBase = {
   id: string;
   user_id: string | null;
-  kind: CatalogueKind;
   namespace: CatalogueNamespace;
   version: number;
-  unit: string | null;
   description: string | null;
-  shape: Record<string, unknown>;
   deprecated: boolean;
   created_at: string;
   updated_at: string;
 };
 
-// A CatalogueEntry whose kind has been narrowed to the sample-compatible
-// subset. validateSample() upstream rejects anything else, but the type
-// system needs an explicit guard to prove it before assigning to a
-// SamplesTable row.
-type SampleCatalogueEntry = CatalogueEntry & { kind: SampleKind };
+type NumericEntry = CatalogueEntryBase & { kind: 'numeric'; config: NumericConfig };
+type CategoricalEntry = CatalogueEntryBase & { kind: 'categorical'; config: CategoricalConfig };
+type GeoEntry = CatalogueEntryBase & { kind: 'geo'; config: GeoConfig };
+type CompositeEntry = CatalogueEntryBase & { kind: 'composite'; config: CompositeConfig };
+type EventEntry = CatalogueEntryBase & { kind: 'event'; config: EventConfig };
+type SessionEntry = CatalogueEntryBase & { kind: 'session'; config: SessionConfig };
+
+type CatalogueEntry = NumericEntry | CategoricalEntry | GeoEntry | CompositeEntry | EventEntry | SessionEntry;
+type SampleCatalogueEntry = NumericEntry | CategoricalEntry | GeoEntry | CompositeEntry;
 
 const SAMPLE_KINDS: ReadonlySet<CatalogueKind> = new Set(['numeric', 'categorical', 'geo', 'composite']);
 
@@ -63,19 +81,21 @@ class CatalogueAliasTargetError extends Error {
   }
 }
 
-const rowToEntry = (row: CatalogueEntriesTable): CatalogueEntry => ({
-  id: row.id,
-  user_id: row.user_id,
-  kind: row.kind,
-  namespace: row.namespace,
-  version: row.version,
-  unit: row.unit,
-  description: row.description,
-  shape: JSON.parse(row.shape) as Record<string, unknown>,
-  deprecated: row.deprecated === 1,
-  created_at: row.created_at,
-  updated_at: row.updated_at,
-});
+// The `as CatalogueEntry` is safe: row.kind is the typed discriminator and
+// the only writers (seed + createCustomEntry) build config to match.
+const rowToEntry = (row: CatalogueEntriesTable): CatalogueEntry =>
+  ({
+    id: row.id,
+    user_id: row.user_id,
+    kind: row.kind,
+    namespace: row.namespace,
+    version: row.version,
+    description: row.description,
+    config: JSON.parse(row.config),
+    deprecated: row.deprecated === 1,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }) as CatalogueEntry;
 
 const rowToAlias = (row: CatalogueAliasesTable): AliasEntry => ({
   alias: row.alias,
@@ -84,13 +104,31 @@ const rowToAlias = (row: CatalogueAliasesTable): AliasEntry => ({
   created_at: row.created_at,
 });
 
-const toEntryResponse = (entry: CatalogueEntry): CatalogueEntryResponse => entry;
-const toAliasResponse = (alias: AliasEntry): CatalogueAliasResponse => alias;
-
 // A catalogue entry is visible to a user if it's canonical (user_id IS NULL)
 // or owned by that user. Used wherever we filter entries by viewer.
 const visibleToUser = (userId: string) => (eb: ExpressionBuilder<DatabaseSchema, 'catalogue_entries'>) =>
   eb.or([eb('user_id', 'is', null), eb('user_id', '=', userId)]);
+
+const validateSampleValue = (entry: SampleCatalogueEntry, value: unknown): ValidationResult => {
+  switch (entry.kind) {
+    case 'numeric':
+      return validateNumeric(value, entry.config);
+    case 'categorical':
+      return validateCategorical(value, entry.config);
+    case 'geo':
+      return validateGeo(value);
+    case 'composite':
+      return validateComposite(value, entry.config);
+  }
+};
+
+// Cache key folds in user_id so the same id can host different schemas
+// across canonical and custom (or two users' customs) without collisions.
+const validatorCacheKey = (entry: EventEntry): string =>
+  `${entry.user_id ?? 'canonical'}::${entry.id}::${entry.version}`;
+
+const validateEventPayloadAgainstEntry = (entry: EventEntry, payload: unknown): ValidationResult =>
+  validateEventPayload(validatorCacheKey(entry), entry.config.schema, payload);
 
 class CatalogueService {
   #services: Services;
@@ -134,7 +172,7 @@ class CatalogueService {
       query = query.where('kind', '=', filter.kind);
     }
     const rows = await query.execute();
-    return rows.map(rowToEntry).map(toEntryResponse);
+    return rows.map(rowToEntry);
   };
 
   get = async (id: string, userId: string): Promise<CatalogueEntryResponse | null> => {
@@ -145,16 +183,20 @@ class CatalogueService {
       .where('id', '=', id)
       .where(visibleToUser(userId))
       .executeTakeFirst();
-    return row ? toEntryResponse(rowToEntry(row)) : null;
+    return row ? rowToEntry(row) : null;
   };
 
   listAliases = async (userId: string): Promise<CatalogueAliasResponse[]> => {
     const db = await this.#services.get(DatabaseService).getInstance();
     const rows = await db.selectFrom('catalogue_aliases').selectAll().where('user_id', '=', userId).execute();
-    return rows.map(rowToAlias).map(toAliasResponse);
+    return rows.map(rowToAlias);
   };
 
   createCustomEntry = async (input: CreateCustomEntryInput, userId: string): Promise<CatalogueEntryResponse> => {
+    // Throws CatalogueSchemaError, which the route maps to 400.
+    if (input.kind === 'event') {
+      assertValidEventSchema(input.config.schema);
+    }
     const db = await this.#services.get(DatabaseService).getInstance();
     await this.#assertIdAvailable(input.id, userId);
 
@@ -165,15 +207,14 @@ class CatalogueService {
       kind: input.kind,
       namespace: 'custom',
       version: 1,
-      unit: input.kind === 'numeric' ? input.unit : null,
       description: input.description ?? null,
-      shape: JSON.stringify(input.shape),
+      config: JSON.stringify(input.config),
       deprecated: 0,
       created_at: now,
       updated_at: now,
     };
     await db.insertInto('catalogue_entries').values(row).execute();
-    return toEntryResponse(rowToEntry(row));
+    return rowToEntry(row);
   };
 
   createAlias = async (input: CreateAliasInput, userId: string): Promise<CatalogueAliasResponse> => {
@@ -191,7 +232,7 @@ class CatalogueService {
       created_at: now,
     };
     await db.insertInto('catalogue_aliases').values(row).execute();
-    return toAliasResponse(rowToAlias(row));
+    return rowToAlias(row);
   };
 
   // Throws if `id` collides with a catalogue entry visible to the user, or
@@ -220,5 +261,24 @@ class CatalogueService {
   };
 }
 
-export type { CatalogueEntry, SampleCatalogueEntry };
-export { CatalogueAliasTargetError, CatalogueDuplicateError, CatalogueService, isSampleEntry };
+export type { CatalogueEntry, EventEntry, JsonSchema, RejectionReason, SampleCatalogueEntry, ValidationResult };
+export type {
+  CategoricalConfig,
+  CompositeComponent,
+  CompositeConfig,
+  EventConfig,
+  GeoConfig,
+  NumericConfig,
+  Range,
+  SessionConfig,
+} from './catalogue.schemas.ts';
+export {
+  CatalogueAliasTargetError,
+  CatalogueDuplicateError,
+  CatalogueSchemaError,
+  CatalogueService,
+  fail,
+  isSampleEntry,
+  validateEventPayloadAgainstEntry,
+  validateSampleValue,
+};

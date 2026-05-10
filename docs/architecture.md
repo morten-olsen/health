@@ -37,14 +37,20 @@ The platform models four kinds of data:
 | **Session**    | typed time-bounded activity (catalogue kind=`session`); does _not_ own samples | run, sleep period, meditation, drive                                    |
 | **Annotation** | free-form contextual enrichment over `[start, end]`; **not** in the catalogue  | "Travelling in Japan — expect HR/sleep anomalies"; "Recalibrated scale" |
 
-Samples have a **value-kind** declared by their catalogue entry:
+Samples have a **value-kind** declared by their catalogue entry. The wire shape is bare per kind — no `{value, unit}` envelope — because the catalogue is the single source of truth for unit. Integrations convert to the canonical unit at the seam; consumers trust whatever the catalogue declares.
 
-- `numeric` — `{ value, unit }` (e.g. heart rate)
-- `categorical` — `{ value }` from a declared enum (e.g. sleep stage)
-- `geo` — `{ lat, lng, altitude?, accuracy? }`
-- `composite` — `{ values, units }` for co-measured pairs (e.g. blood pressure)
+| `kind`        | Wire `value`                         | Catalogue `config`                             | Example                                   |
+| ------------- | ------------------------------------ | ---------------------------------------------- | ----------------------------------------- |
+| `numeric`     | `number`                             | `{ unit, range? }`                             | `value: 142` → 142 bpm                    |
+| `categorical` | `string` from a declared enum        | `{ values: [...] }`                            | `value: "deep"`                           |
+| `geo`         | `{ lat, lng, altitude?, accuracy? }` | `{}` (fixed shape)                             | `value: { lat: 55.6761, lng: 12.5683 }`   |
+| `composite`   | `{ <component>: number, ... }`       | `{ components: { <name>: { unit, range? } } }` | `value: { systolic: 120, diastolic: 80 }` |
 
-Sessions and events are tracked as `kind: 'session'` and `kind: 'event'` in the catalogue but carry no value-shape validation rules — sessions just need to be a registered type, events accept opaque payloads.
+Events carry a structured `payload` validated against a JSON Schema declared on the entry's `config.schema`. JSON Schema earns its keep here because event payloads are genuinely complex (variable shape, optional fields, arrays). For numeric leaves of an event schema, `x-unit` annotates the unit so consumers know what `weight: 100` means without having to handcraft a unit lookup. Unit _enforcement_ still happens at the integration seam — the platform doesn't compare units against data because there is no unit field in the data.
+
+Where unit is genuinely _data_ — varies per record, e.g. medication dose can be mg or IU or tablets — keep an explicit `_unit` field with an `enum` constraint instead of using `x-unit`. Each canonical event schema makes that choice locally.
+
+Sessions are catalogue-typed but in v1 carry only a `kind` + optional free-form `metadata`. A session metadata schema (mirroring events) may land in v2 if a real use case appears.
 
 **Annotations bypass the catalogue entirely.** They're notes, not measurements — there's nothing to validate beyond timestamp ordering. Storing them goes through the same lakehouse pipeline (raw → published) so they participate in idempotency, replay, and source attribution like everything else.
 
@@ -52,7 +58,41 @@ Sessions and events are tracked as `kind: 'session'` and `kind: 'event'` in the 
 
 ## Catalogue
 
-The catalogue is the validation contract. Two namespaces, governed differently:
+The catalogue is the validation contract. Each entry is `{ id, kind, description, config }` where `config` is a tight per-kind shape:
+
+```json
+{ "id": "heart_rate", "kind": "numeric",
+  "description": "Heart rate in beats per minute",
+  "config": { "unit": "bpm", "range": { "min": 20, "max": 250 } } }
+
+{ "id": "blood_pressure", "kind": "composite",
+  "description": "Blood pressure (systolic / diastolic)",
+  "config": { "components": {
+      "systolic":  { "unit": "mmHg", "range": { "min": 50, "max": 260 } },
+      "diastolic": { "unit": "mmHg", "range": { "min": 30, "max": 160 } } } } }
+
+{ "id": "strength_set", "kind": "event",
+  "description": "One set of a strength exercise",
+  "config": { "schema": {
+      "type": "object",
+      "properties": {
+        "exercise": { "type": "string", "minLength": 1 },
+        "reps":     { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "weight":   { "type": "number", "minimum": 0, "maximum": 2000, "x-unit": "kg" },
+        "rpe":      { "type": "number", "minimum": 1, "maximum": 10 }
+      },
+      "required": ["exercise", "reps"],
+      "additionalProperties": false } } }
+```
+
+- **Per-kind config, not JSON-Schema-for-everything.** Numeric/categorical/geo/composite have small fixed shapes; the catalogue stores them as typed config and validates samples in tight hand-coded code. Events use JSON Schema (Ajv 2020-12) because their payloads are genuinely complex. One tool per problem.
+- **Catalogue declares unit; data carries the value.** Numeric samples are bare numbers on the wire — `value: 142`, not `{value: 142, unit: 'bpm'}`. The catalogue says `unit: 'bpm'`. Integrations convert; consumers trust. This avoids the trap of every consumer having to handle every unit a vendor might ever submit.
+- **`kind` is the routing discriminator.** It picks which canonical table the record lands in (`samples` / `events` / `sessions`) and which submission `type` may reference the entry. Explicit on the envelope, never inferred from config shape.
+- **Strict-by-default event schemas.** Canonical event entries set `additionalProperties: false` so vendors sending unexpected fields get a clean `schema_mismatch` rather than silently mis-stored data. Custom entries can choose either.
+- **`x-unit` for unit-as-metadata; explicit `_unit` field for unit-as-data.** When a unit is a fixed property of the metric (strength_set weight in kg), declare it with `x-unit` and drop it from the data — integrations convert. When unit is genuinely variable per-record (medication dose can be mg/IU/tablets), keep it as a regular field with an `enum` constraint. The schema author makes this choice per-field.
+- **Meta-validation soft guards on event schemas.** Custom event entries' JSON Schemas are meta-validated against JSON Schema 2020-12 itself, plus: external `$ref` rejected (SSRF + reproducibility), schema size capped (32 KB), nesting depth capped (12), `format` restricted to a known whitelist. These run before Ajv compiles the schema, so abuse is cheap to reject.
+
+Two namespaces, governed differently:
 
 |                    | Canonical                                  | Custom                                                                   |
 | ------------------ | ------------------------------------------ | ------------------------------------------------------------------------ |
@@ -82,10 +122,11 @@ Custom entries can shadow canonical names? No — `createCustomEntry` checks bot
 {
   "source": { "integration": "gadgetbridge", "device": "garmin_fenix_7", "instance": "abc123" },
   "items": [
-    { "type": "sample",     "idempotency_key": "...", "metric": "heart_rate", "start": "...", "end": "...", "tz": "...", "value": { "value": 142, "unit": "bpm" } },
-    { "type": "session",    "idempotency_key": "...", "session_type": "run", "start": "...", "end": "...", "metadata": { ... } },
-    { "type": "event",      "idempotency_key": "...", "metric": "medication_taken", "at": "...", "payload": { ... } },
-    { "type": "annotation", "idempotency_key": "...", "start": "...", "end": "...", "text": "...", "tags": ["..."] }
+    { "type": "sample",     "idempotency_key": "...", "metric": "heart_rate",       "start": "...", "end": "...", "tz": "...", "value": 142 },
+    { "type": "sample",     "idempotency_key": "...", "metric": "blood_pressure",   "start": "...", "end": "...",                "value": { "systolic": 120, "diastolic": 80 } },
+    { "type": "session",    "idempotency_key": "...", "session_type": "run",        "start": "...", "end": "...",                "metadata": { ... } },
+    { "type": "event",      "idempotency_key": "...", "metric": "strength_set",     "at": "...",                                 "payload": { "exercise": "back_squat", "reps": 5, "weight": 100 } },
+    { "type": "annotation", "idempotency_key": "...",                               "start": "...", "end": "...",                "text": "...", "tags": ["..."] }
   ]
 }
 ```
@@ -98,9 +139,10 @@ Integrations can branch on these programmatically — never extend without bumpi
 
 - `unknown_metric` — metric ID not in catalogue
 - `invalid_value_kind` — known metric but wrong primitive type (e.g. session_type points to a numeric metric)
-- `schema_mismatch` — value shape wrong for the kind
-- `out_of_range` — numeric value outside declared range
-- `missing_field` / `invalid_timestamp` — semantic missingness
+- `schema_mismatch` — wrong shape for the kind (sample wrong-typed value, event Ajv `type`/`enum`/`const`/`additionalProperties`/`pattern`/`minLength`/`maxLength`/`minItems`/`maxItems`/`format`, …)
+- `out_of_range` — numeric value outside declared range (sample `numeric.range`/`composite.components[*].range`, geo lat/lng bounds, event Ajv `minimum`/`maximum`/`exclusiveMinimum`/`exclusiveMaximum`)
+- `missing_field` — required field absent (composite missing component, event Ajv `required`)
+- `invalid_timestamp` — semantic timestamp ordering (e.g. `end < start`)
 - `catalogue_deprecated` — the catalogue entry is deprecated
 
 ## Replay

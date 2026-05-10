@@ -7,9 +7,8 @@ type CatalogueRow = {
   kind: string;
   namespace: string;
   version: number;
-  unit: string | null;
   description: string | null;
-  shape: string;
+  config: string;
   deprecated: number;
   created_at: string;
   updated_at: string;
@@ -22,9 +21,8 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
     kind: entry.kind,
     namespace: 'canonical',
     version: 1,
-    unit: entry.unit ?? null,
     description: entry.description,
-    shape: JSON.stringify(entry.shape),
+    config: JSON.stringify(entry.config),
     deprecated: 0,
     created_at: now,
     updated_at: now,

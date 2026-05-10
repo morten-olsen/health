@@ -121,7 +121,15 @@ curl -X POST http://localhost:3000/api/ingest \
         "start": "2026-05-09T17:02:00Z",
         "end":   "2026-05-09T17:02:00Z",
         "tz": "Europe/Copenhagen",
-        "value": { "value": 142, "unit": "bpm" }
+        "value": 142
+      },
+      {
+        "type": "sample",
+        "idempotency_key": "bp-2026-05-09T08:00:00Z",
+        "metric": "blood_pressure",
+        "start": "2026-05-09T08:00:00Z",
+        "end":   "2026-05-09T08:00:00Z",
+        "value": { "systolic": 120, "diastolic": 80 }
       },
       {
         "type": "session",
@@ -137,7 +145,14 @@ curl -X POST http://localhost:3000/api/ingest \
         "idempotency_key": "med-2026-05-09T08:00:00Z",
         "metric": "medication_taken",
         "at": "2026-05-09T08:00:00Z",
-        "payload": { "name": "ibuprofen", "dose_mg": 400 }
+        "payload": { "name": "ibuprofen", "dose_amount": 400, "dose_unit": "mg" }
+      },
+      {
+        "type": "event",
+        "idempotency_key": "set-2026-05-09T18:15:00Z",
+        "metric": "strength_set",
+        "at": "2026-05-09T18:15:00Z",
+        "payload": { "exercise": "back_squat", "reps": 5, "weight": 100, "rpe": 8 }
       },
       {
         "type": "annotation",
@@ -175,24 +190,28 @@ The full request/response schema is browseable in the OpenAPI UI at `/api/docs`.
 
 ## Sample primitives
 
-Every sample's value shape is determined by its catalogue entry's `kind`:
+A sample's value shape is determined by its catalogue entry's `kind`. **The wire is bare** — no `{value, unit}` envelope. The catalogue is the single source of truth for unit; integrations convert at the seam, consumers trust the catalogue.
 
-| `kind`        | value                                       | example                                        |
-| ------------- | ------------------------------------------- | ---------------------------------------------- |
-| `numeric`     | `{ value: number, unit: string }`           | `{ value: 142, unit: "bpm" }`                  |
-| `categorical` | `{ value: string }` (one of declared enum)  | `{ value: "deep" }` (sleep stage)              |
-| `geo`         | `{ lat, lng, altitude?, accuracy? }`        | `{ lat: 55.6761, lng: 12.5683, accuracy: 5 }`  |
-| `composite`   | `{ values: { ... } }` for co-measured pairs | `{ values: { systolic: 120, diastolic: 80 } }` |
+| `kind`        | wire `value`                         | example                            | catalogue declares                             |
+| ------------- | ------------------------------------ | ---------------------------------- | ---------------------------------------------- |
+| `numeric`     | `number`                             | `142`                              | `{ unit, range? }` (e.g. `unit: "bpm"`)        |
+| `categorical` | `string`                             | `"deep"`                           | `{ values: [...] }` (the allowed enum)         |
+| `geo`         | `{ lat, lng, altitude?, accuracy? }` | `{ lat: 55.6761, lng: 12.5683 }`   | `{}` (fixed shape, no per-entry config)        |
+| `composite`   | `{ <component>: number, ... }`       | `{ systolic: 120, diastolic: 80 }` | `{ components: { <name>: { unit, range? } } }` |
 
-**Sessions** (run, sleep, meditation, drive, …) are typed time-bounded activities — they don't _own_ samples. A run session and the HR samples from your Garmin during that window are independent records, joined by time-overlap at query time. This is what lets a single Oura HR stream cover both the run _and_ the rest of the day without any session-attribution gymnastics.
+**Sessions** (run, sleep, meditation, strength*training, hiit, yoga, drive, …) are typed time-bounded activities — they don't \_own* samples. A run session and the HR samples from your Garmin during that window are independent records, joined by time-overlap at query time. This is what lets a single Oura HR stream cover both the run _and_ the rest of the day without any session-attribution gymnastics.
 
-**Events** (medication, meal, manual note) are catalogued discrete instants with a structured payload.
+**Events** (medication, meal, strength sets, cardio intervals, manual notes) are catalogued discrete instants with a **JSON-Schema-validated** structured payload. JSON Schema is the right tool here because event payloads are genuinely complex (variable shape, optional fields, arrays). A strength workout, for example, is a `strength_training` session containing a stream of `strength_set` events (`{exercise, reps, weight, rpe?}` — weight is in kg per the catalogue's `x-unit`), each validated against the catalogue. That's how the platform captures "20 reps of squat at 100 kg" without giving up the cross-vendor shape contract.
+
+When a unit is a fixed property of an event field (strength_set weight = kg), it's declared on the schema via `x-unit` and never appears in the data — integrations convert. When a unit is genuinely variable per-record (medication dose can be mg/IU/tablets/ml), it stays as a regular field with an `enum` constraint (medication_taken has both `dose_amount` and `dose_unit`).
 
 **Annotations** are free-form contextual enrichments to the timeline — _about_ the data rather than data itself. Travel notes, calibrations ("recalibrated the scale today"), illness windows ("food poisoning, disregard sleep"), hardware swaps. They span a range (instant = `start == end`), carry text and optional tags, and don't go through the catalogue — they're notes, not measurements.
 
 ## Adding custom metrics
 
-The shipped canonical catalogue (~33 entries) covers the obvious staples. When a vendor exposes something more specific, register it as a custom catalogue entry — vendor-namespaced so it never collides with canonical or other users' customs. **Custom entries are per-user**: each user can register their own without bothering the admin, and entries are invisible across users.
+The shipped canonical catalogue covers the obvious staples (~37 entries: cardiovascular, body, activity, sleep stages, location, common session types, structured events for medication, meals, strength sets, cardio intervals). When a vendor exposes something more specific, register it as a custom catalogue entry — vendor-namespaced so it never collides with canonical or other users' customs. **Custom entries are per-user**: each user can register their own without bothering the admin, and entries are invisible across users.
+
+A custom entry is `{ id, kind, description?, config }` where `config` is per-kind. For a numeric sample, declare unit + range:
 
 ```bash
 curl -X POST http://localhost:3000/api/catalogue/custom \
@@ -201,11 +220,38 @@ curl -X POST http://localhost:3000/api/catalogue/custom \
   -d '{
     "id": "garmin.stress_score",
     "kind": "numeric",
-    "unit": "score",
     "description": "Garmin stress score (0–100)",
-    "shape": { "range": { "min": 0, "max": 100 } }
+    "config": { "unit": "score", "range": { "min": 0, "max": 100 } }
   }'
 ```
+
+For an event, declare a JSON Schema 2020-12 payload contract:
+
+```bash
+curl -X POST http://localhost:3000/api/catalogue/custom \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "id": "myapp.hiit_round",
+    "kind": "event",
+    "description": "One round of a HIIT workout",
+    "config": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "movement":     { "type": "string" },
+          "work_seconds": { "type": "number", "minimum": 0, "x-unit": "s" },
+          "rest_seconds": { "type": "number", "minimum": 0, "x-unit": "s" },
+          "rounds":       { "type": "integer", "minimum": 1 }
+        },
+        "required": ["movement", "work_seconds"],
+        "additionalProperties": false
+      }
+    }
+  }'
+```
+
+Custom event schemas are meta-validated against JSON Schema 2020-12 itself plus a few soft guards: external `$ref` rejected, schema size capped (32 KB), nesting depth capped (12 levels), and `format` restricted to a known whitelist. Malformed schemas come back as `400` with the violation in the response body. Sample-kind configs (numeric/categorical/geo/composite) are tightly typed — Zod rejects ill-formed configs at the API boundary, no Ajv involved.
 
 If submissions arrived **before** you registered the type, they're sitting in the raw log with `rejection_reason: unknown_metric`. Drain them:
 
@@ -305,7 +351,7 @@ Things deliberately out of scope for v1, in rough priority order for later:
 
 ```bash
 task dev            # start the server with watch
-task test           # run the test suite (27 tests, ~1s)
+task test           # run the test suite (57 tests, ~2s)
 task check          # type-check across the workspace
 task lint           # type-check + ESLint
 task ci:quality     # what CI runs on every PR
