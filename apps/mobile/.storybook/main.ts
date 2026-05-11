@@ -19,6 +19,9 @@ const config: StorybookConfig = {
   viteFinal: async (viteConfig) => {
     return {
       ...viteConfig,
+      // Relative base so the static build works at any mount path
+      // (e.g. https://health.mortenolsen.pro/design-system/).
+      base: './',
       resolve: {
         ...viteConfig.resolve,
         alias: {

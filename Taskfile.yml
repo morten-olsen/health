@@ -130,6 +130,12 @@ tasks:
       - task: ci:install
       - task: license:check
 
+  ci:design-system:
+    desc: Build the Storybook static site for publishing
+    cmds:
+      - task: ci:install
+      - task: build-storybook
+
   docker:build:
     desc: Build the Docker image locally (mirrors what kaniko builds in CI)
     cmds:

@@ -1,0 +1,34 @@
+# Build the apps/mobile Storybook and publish it as the public design system
+# at https://health.mortenolsen.pro/design-system/.
+#
+# The repo name happens to match the apex (CI_REPO_NAME = "health"), but we
+# spell `host:` explicitly so the deploy target is obvious from the file.
+
+name: design-system
+
+when:
+  - event: [push, manual]
+    branch: main
+
+# Wait for the gate — don't publish the design system if quality or compliance
+# is red, even though the static site is a separate artifact from the server.
+depends_on:
+  - quality
+  - compliance
+
+steps:
+  build:
+    image: code.olsen.cloud/ci/mise:latest
+    commands:
+      - mise install
+      - task ci:design-system
+
+  publish:
+    image: code.olsen.cloud/ci/pages-deploy:latest
+    settings:
+      host: health.mortenolsen.pro
+      path: /design-system
+      dir: ./apps/mobile/storybook-static
+      token:
+        from_secret: pages_admin_token
+    depends_on: [build]

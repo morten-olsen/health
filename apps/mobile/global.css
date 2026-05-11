@@ -1,3 +1,79 @@
+/* Web-only font wiring for Storybook + react-native-web.
+   Native bundles will load these via expo-font from the same families. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,30..100&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #storybook-root {
+    background-color: #0a0b0e;
+    color: #f2efe9;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* Tabular numerals everywhere — Aurora's numbers should never dance. */
+  body {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+}
+
+@keyframes aurora-pulse {
+  0% { opacity: 0.32; transform: scale(0.7); }
+  50% { opacity: 0.08; transform: scale(1.2); }
+  100% { opacity: 0.32; transform: scale(0.7); }
+}
+
+@keyframes aurora-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes aurora-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@layer utilities {
+  .font-numeric {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: 'opsz' 96, 'SOFT' 30, 'wght' 350;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .font-display {
+    font-family: 'Fraunces', serif;
+    font-variation-settings: 'opsz' 96, 'SOFT' 80, 'wght' 400;
+  }
+
+  /* Aurora hairline — sub-pixel border that survives at any DPR. */
+  .hairline {
+    box-shadow: inset 0 0 0 0.5px rgba(242, 239, 233, 0.08);
+  }
+
+  /* Inner soft glow used by recovery / aurora-state surfaces. */
+  .glow-aurora {
+    box-shadow:
+      inset 0 0 24px -8px rgba(127, 231, 181, 0.18),
+      0 0 32px -4px rgba(127, 231, 181, 0.12);
+  }
+
+  .glow-strain {
+    box-shadow:
+      inset 0 0 24px -8px rgba(168, 139, 255, 0.18),
+      0 0 32px -4px rgba(168, 139, 255, 0.12);
+  }
+
+  .glow-notice {
+    box-shadow:
+      inset 0 0 24px -8px rgba(255, 179, 107, 0.18),
+      0 0 32px -4px rgba(255, 179, 107, 0.12);
+  }
+}
