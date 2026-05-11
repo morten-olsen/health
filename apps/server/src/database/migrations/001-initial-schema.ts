@@ -1,4 +1,7 @@
+import { sql } from 'kysely';
 import type { Kysely } from 'kysely';
+
+import { canonicalSeed } from '../../catalogue/catalogue.seed.ts';
 
 // All tables use portable column types so the same migration runs on both
 // SQLite and Postgres:
@@ -7,6 +10,19 @@ import type { Kysely } from 'kysely';
 //   - booleans are `integer` (0 or 1)
 //   - IDs are `text` UUIDs (app-generated via crypto.randomUUID())
 // No DB-side defaults — the application is the single source of truth.
+
+type CatalogueRow = {
+  id: string;
+  user_id: string | null;
+  kind: string;
+  namespace: string;
+  version: number;
+  description: string | null;
+  config: string;
+  deprecated: number;
+  created_at: string;
+  updated_at: string;
+};
 
 const up = async (db: Kysely<unknown>): Promise<void> => {
   // users — created first because every data table FK-references it.
@@ -30,6 +46,10 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
   // catalogue_entries — user_id is NULL for canonical (shared) entries;
   // set to a user's id for per-user custom entries. Two users can register
   // the same id (e.g. `garmin.stress_score`) without collision.
+  //
+  // No table-level PK: a composite (id, user_id) PK would force NOT NULL
+  // on user_id in Postgres, breaking canonical (NULL-owner) rows. Identity
+  // is enforced by the two partial unique indexes below instead.
   await db.schema
     .createTable('catalogue_entries')
     .addColumn('id', 'text', (col) => col.notNull())
@@ -42,7 +62,24 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
     .addColumn('deprecated', 'integer', (col) => col.notNull())
     .addColumn('created_at', 'text', (col) => col.notNull())
     .addColumn('updated_at', 'text', (col) => col.notNull())
-    .addPrimaryKeyConstraint('pk_catalogue_entries', ['id', 'user_id'])
+    .execute();
+
+  // Canonical: id is globally unique across all canonical entries.
+  await db.schema
+    .createIndex('idx_catalogue_entries_canonical_id')
+    .on('catalogue_entries')
+    .column('id')
+    .where(sql.ref('user_id'), 'is', null)
+    .unique()
+    .execute();
+
+  // Custom: (id, user_id) is unique per owner; two users may share the id.
+  await db.schema
+    .createIndex('idx_catalogue_entries_custom_id')
+    .on('catalogue_entries')
+    .columns(['id', 'user_id'])
+    .where(sql.ref('user_id'), 'is not', null)
+    .unique()
     .execute();
 
   await db.schema.createIndex('idx_catalogue_entries_namespace').on('catalogue_entries').column('namespace').execute();
@@ -178,9 +215,54 @@ const up = async (db: Kysely<unknown>): Promise<void> => {
     .on('sessions')
     .columns(['user_id', 'session_type', 'start_at'])
     .execute();
+
+  // annotations — free-form contextual enrichments to the timeline (notes
+  // about the data rather than data itself). Distinct from events, which
+  // are catalogued discrete trackings with structured payloads.
+  await db.schema
+    .createTable('annotations')
+    .addColumn('id', 'text', (col) => col.primaryKey())
+    .addColumn('user_id', 'text', (col) => col.notNull().references('users.id').onDelete('cascade'))
+    .addColumn('text', 'text', (col) => col.notNull())
+    .addColumn('start_at', 'text', (col) => col.notNull())
+    .addColumn('end_at', 'text', (col) => col.notNull())
+    .addColumn('tz', 'text')
+    .addColumn('tags', 'text') // JSON array of strings
+    .addColumn('source_integration', 'text', (col) => col.notNull())
+    .addColumn('source_device', 'text', (col) => col.notNull())
+    .addColumn('source_instance', 'text')
+    .addColumn('ingest_log_id', 'text', (col) => col.notNull().references('ingest_log.id').onDelete('cascade'))
+    .addColumn('created_at', 'text', (col) => col.notNull())
+    .execute();
+
+  await db.schema
+    .createIndex('idx_annotations_user_start')
+    .on('annotations')
+    .columns(['user_id', 'start_at'])
+    .execute();
+
+  // Seed canonical catalogue entries. user_id is NULL → matches the
+  // canonical partial unique index, visible to every user via the
+  // catalogue resolve precedence (alias → custom → canonical).
+  const now = new Date().toISOString();
+  const seedRows: CatalogueRow[] = canonicalSeed.map((entry) => ({
+    id: entry.id,
+    user_id: null,
+    kind: entry.kind,
+    namespace: 'canonical',
+    version: 1,
+    description: entry.description,
+    config: JSON.stringify(entry.config),
+    deprecated: 0,
+    created_at: now,
+    updated_at: now,
+  }));
+
+  await (db as Kysely<{ catalogue_entries: CatalogueRow }>).insertInto('catalogue_entries').values(seedRows).execute();
 };
 
 const down = async (db: Kysely<unknown>): Promise<void> => {
+  await db.schema.dropTable('annotations').execute();
   await db.schema.dropTable('sessions').execute();
   await db.schema.dropTable('events').execute();
   await db.schema.dropTable('samples').execute();
