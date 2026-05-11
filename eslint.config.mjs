@@ -9,6 +9,134 @@ const compat = new FlatCompat({
   resolvePluginsRelativeTo: import.meta.dirname,
 });
 
+// React Native / Storybook plugins are loaded lazily — apps/mobile is the only
+// workspace that uses them, and the root eslint run needs to keep working even
+// before its deps are installed.
+const loadOptional = async (name) => {
+  try {
+    return (await import(name)).default;
+  } catch {
+    return null;
+  }
+};
+
+const [react, reactHooks, boundaries, storybook, globalsMod] = await Promise.all([
+  loadOptional('eslint-plugin-react'),
+  loadOptional('eslint-plugin-react-hooks'),
+  loadOptional('eslint-plugin-boundaries'),
+  loadOptional('eslint-plugin-storybook'),
+  loadOptional('globals'),
+]);
+
+const MOBILE_FILES = ['apps/mobile/**/*.{ts,tsx}'];
+
+const mobileBlocks = [];
+
+if (globalsMod) {
+  mobileBlocks.push({
+    files: MOBILE_FILES,
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+      globals: {
+        ...globalsMod.browser,
+        __DEV__: 'readonly',
+      },
+    },
+    settings: {
+      react: { version: 'detect' },
+    },
+  });
+}
+
+if (react && reactHooks) {
+  mobileBlocks.push({
+    files: MOBILE_FILES,
+    plugins: { react, 'react-hooks': reactHooks },
+    rules: {
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react/forbid-elements': [
+        'error',
+        {
+          forbid: [
+            { element: 'TouchableOpacity', message: 'Use <Pressable> instead.' },
+            { element: 'TouchableHighlight', message: 'Use <Pressable> instead.' },
+            { element: 'TouchableWithoutFeedback', message: 'Use <Pressable> instead.' },
+          ],
+        },
+      ],
+    },
+  });
+}
+
+if (boundaries) {
+  mobileBlocks.push({
+    files: MOBILE_FILES,
+    plugins: { boundaries },
+    settings: {
+      'boundaries/elements': [
+        { type: 'components', pattern: ['apps/mobile/src/components/**'] },
+        { type: 'shared', pattern: ['apps/mobile/src/shared/**'] },
+        { type: 'app', pattern: ['apps/mobile/app/**'] },
+      ],
+      'boundaries/ignore': ['**/*.test.{ts,tsx}', '**/*.stories.{ts,tsx}'],
+    },
+    rules: {
+      'boundaries/dependencies': ['error', { default: 'allow', rules: [] }],
+    },
+  });
+}
+
+// Mobile-specific authoring rules: ban StyleSheet.create + console.
+mobileBlocks.push({
+  files: MOBILE_FILES,
+  rules: {
+    'no-console': 'error',
+    'no-restricted-properties': [
+      'error',
+      {
+        object: 'StyleSheet',
+        property: 'create',
+        message: 'StyleSheet.create is not allowed. Use NativeWind className instead.',
+      },
+    ],
+  },
+});
+
+// Expo Router + stories need default exports and `index.tsx` / `_layout.tsx` filenames.
+mobileBlocks.push({
+  files: [
+    'apps/mobile/app/**/*.{ts,tsx}',
+    'apps/mobile/app.config.ts',
+    'apps/mobile/**/*.stories.{ts,tsx}',
+    'apps/mobile/.storybook/**/*.{ts,tsx}',
+  ],
+  rules: {
+    'import/no-default-export': 'off',
+    'no-restricted-syntax': 'off',
+  },
+});
+
+const storybookBlocks = storybook
+  ? [
+      ...storybook.configs['flat/recommended'].map((block) => ({
+        ...block,
+        files: block.files ?? ['apps/mobile/**/*.stories.{ts,tsx}'],
+      })),
+      {
+        files: ['apps/mobile/**/*.stories.{ts,tsx}'],
+        rules: {
+          'import/no-default-export': 'off',
+          'max-lines-per-function': 'off',
+        },
+      },
+    ]
+  : [];
+
 export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.strict,
@@ -93,6 +221,8 @@ export default tseslint.config(
       'max-lines-per-function': 'off',
     },
   },
+  ...mobileBlocks,
+  ...storybookBlocks,
   ...compat.extends('plugin:prettier/recommended'),
   {
     rules: {
@@ -100,6 +230,18 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/node_modules/', '**/dist/', '**/.task/', '**/*.api-types.ts'],
+    ignores: [
+      '**/node_modules/',
+      '**/dist/',
+      '**/.task/',
+      '**/*.api-types.ts',
+      'apps/mobile/.expo/',
+      'apps/mobile/ios/',
+      'apps/mobile/android/',
+      'apps/mobile/patches/',
+      'apps/mobile/storybook-static/',
+      'apps/mobile/expo-env.d.ts',
+      'apps/mobile/nativewind-env.d.ts',
+    ],
   },
 );

@@ -6,6 +6,7 @@ version: '3'
 vars:
   SERVER_DIR: apps/server
   GB_INGEST_DIR: apps/gb-ingest
+  MOBILE_DIR: apps/mobile
   SMOKE_PORT: 3199
 
 tasks:
@@ -151,6 +152,84 @@ tasks:
         echo "Docker smoke test failed — /api/health did not respond"
         docker logs $CONTAINER
         exit 1
+
+  mobile:dev:
+    desc: Start the Expo dev server (Metro)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm expo start
+
+  mobile:ios:
+    desc: Build and run on iOS (requires Xcode + simulator)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm expo run:ios
+
+  mobile:android:
+    desc: Build and run on Android (requires Android SDK + emulator)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm expo run:android
+
+  mobile:web:
+    desc: Start Expo with the web target
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm expo start --web
+
+  mobile:prebuild:
+    desc: Generate ios/ and android/ folders (only when escaping managed workflow)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm expo prebuild
+
+  mobile:build:dev:
+    desc: EAS dev-client build (custom dev client for native modules)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas build --profile development --platform all
+
+  mobile:build:dev:simulator:
+    desc: EAS simulator-only dev build (iOS, no Apple Developer account needed)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas build --profile development-simulator --platform ios
+
+  mobile:build:preview:
+    desc: EAS preview build (internal distribution, APK on Android)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas build --profile preview --platform all
+
+  mobile:build:prod:
+    desc: EAS production build (store-ready, auto-incremented build numbers)
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas build --profile production --platform all
+
+  mobile:submit:prod:
+    desc: Submit the latest production build to App Store / Play Store
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas submit --profile production --platform all
+
+  mobile:update:
+    desc: Publish an OTA update to the current branch's channel
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - eas update --auto
+
+  storybook:
+    desc: Start Storybook (apps/mobile) on port 6006
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm exec storybook dev -p 6006
+
+  build-storybook:
+    desc: Build static Storybook to apps/mobile/storybook-static
+    dir: '{{.MOBILE_DIR}}'
+    cmds:
+      - pnpm exec storybook build
 
   clean:
     desc: Remove build artifacts and local databases

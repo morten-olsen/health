@@ -1,6 +1,8 @@
 [tools]
 node = "24"
 "npm:@go-task/cli" = "latest"
+# EAS CLI for apps/mobile — cloud builds, OTA updates, store submission.
+"npm:eas-cli" = "latest"
 
 # pnpm comes from corepack — version is pinned in package.json#packageManager.
 
@@ -11,3 +13,5 @@ python = "3.13"
 [env]
 # Silence pnpm's warning about NODE_AUTH_TOKEN in ~/.npmrc
 NODE_AUTH_TOKEN = ""
+# Opt out of Storybook's anonymous usage telemetry.
+STORYBOOK_DISABLE_TELEMETRY = "1"
