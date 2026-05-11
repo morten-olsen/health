@@ -100,6 +100,6 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['**/node_modules/', '**/dist/', '**/.task/'],
+    ignores: ['**/node_modules/', '**/dist/', '**/.task/', '**/*.api-types.ts'],
   },
 );

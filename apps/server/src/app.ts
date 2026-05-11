@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   hasZodFastifySchemaValidationErrors,
   jsonSchemaTransform,
+  jsonSchemaTransformObject,
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod';
@@ -51,6 +52,11 @@ const createApp = async ({ logger = true, services }: CreateAppOptions = {}): Pr
       info: { title: 'Health Platform API', version: '0.0.1' },
     },
     transform: jsonSchemaTransform,
+    // Without this, schemas registered via `z.globalRegistry.add(s, { id })`
+    // emit $ref'd responses but `components.schemas` stays empty — refs
+    // dangle and OpenAPI-driven clients (openapi-typescript, scalar, etc.)
+    // can't resolve them.
+    transformObject: jsonSchemaTransformObject,
   });
 
   await fastify.register(scalarReference, { routePrefix: '/api/docs' });

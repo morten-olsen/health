@@ -19,6 +19,12 @@ const metricIdSchema = z.string().min(1).max(200);
 // catalogue entry inside CatalogueService/validateSample.
 const sampleValueSchema = z.unknown();
 
+// Optional reference to a session by its idempotency_key (the integration's
+// stable identifier — same value that goes on the matching session item's
+// idempotency_key field). Resolved to a session UUID at publish time, or
+// back-filled when the session arrives later. Scoped to the same source.
+const sessionRefSchema = idempotencyKeySchema.optional();
+
 const sampleItemSchema = z.object({
   type: z.literal('sample'),
   idempotency_key: idempotencyKeySchema,
@@ -27,6 +33,7 @@ const sampleItemSchema = z.object({
   end: isoInstantSchema,
   tz: tzSchema,
   value: sampleValueSchema,
+  session_idempotency_key: sessionRefSchema,
 });
 
 const sessionItemSchema = z.object({
@@ -46,6 +53,7 @@ const eventItemSchema = z.object({
   at: isoInstantSchema,
   tz: tzSchema,
   payload: z.record(z.string(), z.unknown()),
+  session_idempotency_key: sessionRefSchema,
 });
 
 const annotationItemSchema = z.object({

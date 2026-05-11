@@ -4,8 +4,10 @@ import type { Services } from '../services/services.ts';
 
 import { createAuthRoutes } from './auth.routes.ts';
 import { createCatalogueRoutes } from './catalogue.routes.ts';
+import { createDevicesRoutes } from './devices.routes.ts';
 import { healthRoute } from './health.routes.ts';
 import { createIngestRoutes } from './ingest.routes.ts';
+import { createSyncRoutes } from './sync.routes.ts';
 
 const registerRoutes = async (fastify: Parameters<FastifyPluginAsyncZod>[0], services: Services): Promise<void> => {
   await fastify.register(
@@ -14,6 +16,8 @@ const registerRoutes = async (fastify: Parameters<FastifyPluginAsyncZod>[0], ser
       await api.register(createAuthRoutes(services));
       await api.register(createCatalogueRoutes(services));
       await api.register(createIngestRoutes(services));
+      await api.register(createDevicesRoutes(services));
+      await api.register(createSyncRoutes(services));
     },
     { prefix: '/api' },
   );

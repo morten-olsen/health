@@ -60,6 +60,7 @@ const canonicalSeed: SeedEntry[] = [
   numeric('heart_rate_variability', 'ms', [0, 300], 'Heart rate variability (RMSSD)'),
   numeric('respiratory_rate', 'breaths/min', [4, 60], 'Respiratory rate'),
   numeric('spo2', '%', [0, 100], 'Blood oxygen saturation'),
+  numeric('stress_level', 'score', [0, 100], 'Stress level on a 0–100 scale (vendor-normalised)'),
   composite(
     'blood_pressure',
     {
@@ -80,10 +81,26 @@ const canonicalSeed: SeedEntry[] = [
   numeric('distance', 'm', [0, 1000000], 'Distance travelled'),
   numeric('active_energy', 'kcal', [0, 10000], 'Active energy expenditure'),
   numeric('basal_energy', 'kcal', [0, 10000], 'Basal energy expenditure'),
+  numeric('basal_metabolic_rate', 'kcal/day', [500, 5000], 'Estimated basal metabolic rate'),
+  composite(
+    'intensity_minutes',
+    {
+      moderate: { unit: 'min', range: { min: 0, max: 1440 } },
+      vigorous: { unit: 'min', range: { min: 0, max: 1440 } },
+    },
+    'Moderate / vigorous activity minutes (WHO intensity-minutes framework)',
+  ),
   numeric('cadence', 'spm', [0, 300], 'Cadence (steps or revolutions per minute)'),
   numeric('power', 'W', [0, 2000], 'Mechanical power output'),
   numeric('pace', 's/km', [0, 3600], 'Pace in seconds per kilometre'),
+  numeric('speed', 'm/s', [0, 100], 'Instantaneous speed'),
   numeric('vo2_max', 'ml/kg/min', [10, 100], 'Maximal oxygen uptake'),
+  numeric('altitude', 'm', [-500, 10000], 'Altitude above mean sea level'),
+  numeric('elevation_gain', 'm', [0, 20000], 'Cumulative elevation gain over the sample window'),
+  numeric('elevation_loss', 'm', [0, 20000], 'Cumulative elevation loss over the sample window'),
+
+  // Sleep
+  numeric('sleep_score', 'score', [0, 100], 'Vendor-computed daily sleep score (0–100)'),
 
   // Categorical states
   categorical('sleep_stage', ['awake', 'light', 'deep', 'rem'], 'Sleep stage classification'),

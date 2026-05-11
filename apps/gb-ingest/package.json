@@ -1,0 +1,21 @@
+{
+  "name": "@health/gb-ingest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "gen:api": "openapi-typescript ../server/openapi.json -o src/gb-ingest.api-types.ts"
+  },
+  "dependencies": {
+    "@garmin/fitsdk": "^21.171.0",
+    "adm-zip": "^0.5.16",
+    "better-sqlite3": "^12.9.0",
+    "openapi-fetch": "^0.14.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.2",
+    "openapi-typescript": "^7.9.0"
+  }
+}

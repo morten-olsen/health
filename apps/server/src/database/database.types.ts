@@ -92,6 +92,8 @@ type SamplesTable = {
   source_instance: string | null;
   ingest_log_id: string;
   catalogue_version: number;
+  session_key: string | null;
+  session_id: string | null;
   created_at: Timestamp;
 };
 
@@ -107,6 +109,8 @@ type EventsTable = {
   source_instance: string | null;
   ingest_log_id: string;
   catalogue_version: number;
+  session_key: string | null;
+  session_id: string | null;
   created_at: Timestamp;
 };
 
@@ -124,6 +128,16 @@ type SessionsTable = {
   ingest_log_id: string;
   catalogue_version: number;
   created_at: Timestamp;
+};
+
+type UserDevicesTable = {
+  id: string;
+  user_id: string;
+  integration: string;
+  device_id: string;
+  name: string;
+  created_at: Timestamp;
+  updated_at: Timestamp;
 };
 
 type AnnotationsTable = {
@@ -150,6 +164,7 @@ type DatabaseSchema = {
   events: EventsTable;
   sessions: SessionsTable;
   annotations: AnnotationsTable;
+  user_devices: UserDevicesTable;
 };
 
 export type {
@@ -166,6 +181,7 @@ export type {
   SampleKind,
   SamplesTable,
   SessionsTable,
+  UserDevicesTable,
   UserRole,
   UsersTable,
   ValidationStatus,

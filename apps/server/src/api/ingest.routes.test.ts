@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { DatabaseService } from '../database/database.ts';
 import { createTestApp } from '../test-helpers.ts';
 import type { AuthedUser, TestContext } from '../test-helpers.ts';
 
@@ -479,5 +480,79 @@ describe('POST /api/ingest — alias resolution', () => {
       },
     ]);
     expect(result.body.results[0]?.status).toBe('accepted');
+  });
+});
+
+describe('POST /api/ingest — session linkage', () => {
+  const sample = (key: string, sessionKey?: string): object => ({
+    type: 'sample',
+    idempotency_key: key,
+    metric: 'heart_rate',
+    start: '2026-05-09T17:05:00Z',
+    end: '2026-05-09T17:05:00Z',
+    value: 142,
+    ...(sessionKey ? { session_idempotency_key: sessionKey } : {}),
+  });
+
+  const session = (key: string): object => ({
+    type: 'session',
+    idempotency_key: key,
+    session_type: 'run',
+    start: '2026-05-09T17:00:00Z',
+    end: '2026-05-09T18:00:00Z',
+  });
+
+  const fetchSampleByKey = async (
+    idempotencyKey: string,
+  ): Promise<{ session_key: string | null; session_id: string | null } | undefined> => {
+    const db = await t.services.get(DatabaseService).getInstance();
+    return db
+      .selectFrom('samples')
+      .innerJoin('ingest_log', 'ingest_log.id', 'samples.ingest_log_id')
+      .select(['samples.session_key', 'samples.session_id'])
+      .where('ingest_log.idempotency_key', '=', idempotencyKey)
+      .executeTakeFirst();
+  };
+
+  it('resolves session_id at publish time when the session is already published', async () => {
+    await ingest([session('run-A')]);
+    const after = await ingest([sample('s-1', 'run-A')]);
+    expect(after.body.results[0]?.status).toBe('accepted');
+    const row = await fetchSampleByKey('s-1');
+    expect(row?.session_key).toBe('run-A');
+    expect(row?.session_id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('back-fills session_id when the session is published after the sample', async () => {
+    await ingest([sample('s-2', 'run-B')]);
+    const before = await fetchSampleByKey('s-2');
+    expect(before?.session_key).toBe('run-B');
+    expect(before?.session_id).toBeNull();
+
+    await ingest([session('run-B')]);
+    const after = await fetchSampleByKey('s-2');
+    expect(after?.session_id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('leaves session_id null when the referenced session does not exist', async () => {
+    await ingest([sample('s-3', 'never-published')]);
+    const row = await fetchSampleByKey('s-3');
+    expect(row?.session_key).toBe('never-published');
+    expect(row?.session_id).toBeNull();
+  });
+
+  it('does not link across different sources sharing the same key', async () => {
+    await ingest([session('run-C')], { integration: 'gadgetbridge', device: 'watch-A' });
+    // Same session idempotency_key but a different device — must not resolve.
+    await ingest([sample('s-4', 'run-C')], { integration: 'gadgetbridge', device: 'watch-B' });
+    const row = await fetchSampleByKey('s-4');
+    expect(row?.session_id).toBeNull();
+  });
+
+  it('keeps both columns null for samples without a session reference', async () => {
+    await ingest([sample('s-5')]);
+    const row = await fetchSampleByKey('s-5');
+    expect(row?.session_key).toBeNull();
+    expect(row?.session_id).toBeNull();
   });
 });

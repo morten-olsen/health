@@ -5,6 +5,7 @@ version: '3'
 
 vars:
   SERVER_DIR: apps/server
+  GB_INGEST_DIR: apps/gb-ingest
   SMOKE_PORT: 3199
 
 tasks:
@@ -41,6 +42,27 @@ tasks:
     desc: Type-check all workspaces
     cmds:
       - pnpm -r check
+
+  openapi:dump:
+    desc: Dump the live OpenAPI spec to apps/server/openapi.json
+    dir: '{{.SERVER_DIR}}'
+    env:
+      HEALTH_DB_FILENAME: ':memory:'
+    cmds:
+      - node --experimental-strip-types scripts/dump-openapi.ts
+
+  gb-ingest:gen:
+    desc: Regenerate the gb-ingest API types from apps/server/openapi.json
+    deps: [openapi:dump]
+    dir: '{{.GB_INGEST_DIR}}'
+    cmds:
+      - pnpm gen:api
+
+  gb-ingest:run:
+    desc: Run the Gadgetbridge ingester (pass DB path via CLI_ARGS or env)
+    dir: '{{.GB_INGEST_DIR}}'
+    cmds:
+      - node --experimental-strip-types src/gb-ingest.ts {{.CLI_ARGS}}
 
   lint:
     desc: Run all linting (type-check + ESLint)
