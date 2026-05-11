@@ -2,8 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { Text } from './text.tsx';
 import type { TypeRoleName } from '../../shared/theme/theme.ts';
+
+import { Text } from './text.tsx';
 
 const ROLES: TypeRoleName[] = [
   'heroNumeral',
@@ -73,9 +74,8 @@ const Specimens: Story = {
         </Text>
         <Text role="display">A type system you read with your body, not your eye.</Text>
         <Text role="body" tone="secondary">
-          Two families, deliberately matched. Fraunces — variable serif, optical sizing,
-          warmth axis — for any number that wants to be a shape. Geist for everything
-          functional. Tabular figures, always.
+          Two families, deliberately matched. Fraunces — variable serif, optical sizing, warmth axis — for any number
+          that wants to be a shape. Geist for everything functional. Tabular figures, always.
         </Text>
       </View>
       <View

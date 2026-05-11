@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
 import { View } from 'react-native';
 
-import { EmptyState } from './empty-state.tsx';
 import { Button } from '../controls/button.tsx';
+
+import { EmptyState } from './empty-state.tsx';
 
 const meta: Meta<typeof EmptyState> = {
   title: 'Aurora/Feedback/EmptyState',

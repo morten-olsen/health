@@ -30,7 +30,9 @@ const INSET = (HEIGHT - THUMB) / 2;
 
 const Toggle = ({ value, onChange, tone = 'recover', disabled = false }: ToggleProps): ReactNode => {
   const handlePress = (): void => {
-    if (disabled) return;
+    if (disabled) {
+      return;
+    }
     onChange?.(!value);
   };
   const trackColor = value ? TONE_COLOR[tone] : theme.tokens.surface.edge;

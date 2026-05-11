@@ -17,12 +17,7 @@ const COLOR: Record<NonNullable<DividerProps['emphasis']>, string> = {
   edge: theme.tokens.surface.hairlineStrong,
 };
 
-const Divider = ({
-  orientation = 'horizontal',
-  inset = 0,
-  emphasis = 'hairline',
-  style,
-}: DividerProps): ReactNode => {
+const Divider = ({ orientation = 'horizontal', inset = 0, emphasis = 'hairline', style }: DividerProps): ReactNode => {
   if (orientation === 'horizontal') {
     return (
       <View

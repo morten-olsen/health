@@ -91,10 +91,7 @@ const NudgeCard = ({
             </Text>
           </Pressable>
           {dismissLabel ? (
-            <Pressable
-              onPress={onDismiss}
-              style={{ paddingHorizontal: 14, paddingVertical: 10 }}
-            >
+            <Pressable onPress={onDismiss} style={{ paddingHorizontal: 14, paddingVertical: 10 }}>
               <Text role="caption" tone="tertiary">
                 {dismissLabel}
               </Text>

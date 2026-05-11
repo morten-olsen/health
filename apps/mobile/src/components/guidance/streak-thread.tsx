@@ -25,12 +25,7 @@ const STATE_COLOR: Record<StreakState, string> = {
   future: 'rgba(242, 239, 233, 0.06)',
 };
 
-const StreakThread = ({
-  days,
-  labels,
-  todayIndex,
-  tone = 'recover',
-}: StreakThreadProps): ReactNode => {
+const StreakThread = ({ days, labels, todayIndex, tone = 'recover' }: StreakThreadProps): ReactNode => {
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

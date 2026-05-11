@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
 import { View } from 'react-native';
 
-import { NudgeCard } from './nudge-card.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { NudgeCard } from './nudge-card.tsx';
 
 const meta: Meta<typeof NudgeCard> = {
   title: 'Aurora/Guidance/NudgeCard',
@@ -19,9 +20,8 @@ const Set: Story = {
           Nudge — a quiet hand on the shoulder
         </Text>
         <Text role="body" tone="secondary">
-          Nudges are the system's way of carrying the Journey forward. They earn
-          their attention with a single sentence, ground themselves in a reason,
-          and always offer both a yes and a not-now.
+          Nudges are the system's way of carrying the Journey forward. They earn their attention with a single sentence,
+          ground themselves in a reason, and always offer both a yes and a not-now.
         </Text>
       </View>
       <NudgeCard

@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { MetricCard } from './metric-card.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { MetricCard } from './metric-card.tsx';
 
 const heartSeries = [62, 64, 65, 63, 66, 68, 71, 74, 79, 84, 88, 92, 96, 94, 90, 86, 80, 74, 70, 66, 64, 63];
 const sleepSeries = [6.2, 6.8, 7.4, 6.9, 7.2, 7.8, 8.1, 7.9, 7.2, 6.8, 6.4, 7.1, 7.5, 7.9, 8.2];
@@ -55,9 +55,8 @@ const Set: Story = {
           Metric card — the hero of a glance
         </Text>
         <Text role="body" tone="secondary">
-          One number, its shape, a sentence of context, a single trend. No more.
-          Cards are the language of the home — a small library of them tells you
-          everything about a moment without you having to ask.
+          One number, its shape, a sentence of context, a single trend. No more. Cards are the language of the home — a
+          small library of them tells you everything about a moment without you having to ask.
         </Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 20, flexWrap: 'wrap' }}>

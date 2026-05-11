@@ -2,8 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
 import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { Button } from './button.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Button } from './button.tsx';
 
 const meta: Meta<typeof Button> = {
   title: 'Aurora/Controls/Button',

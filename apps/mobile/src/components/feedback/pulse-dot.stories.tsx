@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { PulseDot } from './pulse-dot.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { PulseDot } from './pulse-dot.tsx';
 
 const meta: Meta<typeof PulseDot> = {
   title: 'Aurora/Feedback/PulseDot',
@@ -20,9 +20,8 @@ const Set: Story = {
           Pulse dot — a presence, not a notification
         </Text>
         <Text role="body" tone="secondary">
-          The breath is the system's quietest signal — "something is happening
-          here" without claiming your attention. Used for live values, fresh
-          data, or active sessions.
+          The breath is the system's quietest signal — "something is happening here" without claiming your attention.
+          Used for live values, fresh data, or active sessions.
         </Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 32, alignItems: 'center' }}>

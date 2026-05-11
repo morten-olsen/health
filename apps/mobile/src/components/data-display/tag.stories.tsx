@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { Tag } from './tag.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Tag } from './tag.tsx';
 
 const meta: Meta<typeof Tag> = {
   title: 'Aurora/Data/Tag',

@@ -16,11 +16,7 @@ type SegmentedProps<T extends string = string> = {
   onChange: (next: T) => void;
 };
 
-const Segmented = <T extends string>({
-  options,
-  value,
-  onChange,
-}: SegmentedProps<T>): ReactNode => {
+const Segmented = <T extends string>({ options, value, onChange }: SegmentedProps<T>): ReactNode => {
   const index = Math.max(
     0,
     options.findIndex((o) => o.id === value),

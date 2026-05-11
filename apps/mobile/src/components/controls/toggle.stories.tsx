@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Toggle } from './toggle.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Toggle } from './toggle.tsx';
 
 const meta: Meta<typeof Toggle> = {
   title: 'Aurora/Controls/Toggle',
@@ -52,26 +53,10 @@ const Examples: Story = {
       <Text role="eyebrow" tone="tertiary" uppercase>
         Settings — toggle
       </Text>
-      <Row
-        label="Sleep window"
-        description="Aurora will keep an eye on consistency"
-        tone="rest"
-      />
-      <Row
-        label="Daily nudges"
-        description="Gentle prompts at the right moment, never more"
-        tone="recover"
-      />
-      <Row
-        label="Push to the edge"
-        description="Surface peak-effort windows when ready"
-        tone="strain"
-      />
-      <Row
-        label="High-heart alerts"
-        description="Tell me when something looks unusual"
-        tone="alert"
-      />
+      <Row label="Sleep window" description="Aurora will keep an eye on consistency" tone="rest" />
+      <Row label="Daily nudges" description="Gentle prompts at the right moment, never more" tone="recover" />
+      <Row label="Push to the edge" description="Surface peak-effort windows when ready" tone="strain" />
+      <Row label="High-heart alerts" description="Tell me when something looks unusual" tone="alert" />
     </View>
   ),
 };

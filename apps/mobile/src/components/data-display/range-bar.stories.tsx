@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { RangeBar } from './range-bar.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { RangeBar } from './range-bar.tsx';
 
 const meta: Meta<typeof RangeBar> = {
   title: 'Aurora/Data/RangeBar',

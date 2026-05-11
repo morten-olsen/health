@@ -1,7 +1,6 @@
 import { motion } from './theme.motion.ts';
 import { tokens } from './theme.tokens.ts';
 import { typography } from './theme.typography.ts';
-
 import type { DurationName, EasingName, Motion } from './theme.motion.ts';
 import type { Intent, Tokens } from './theme.tokens.ts';
 import type { TypeRole, TypeRoleName, Typography } from './theme.typography.ts';
@@ -32,12 +31,5 @@ type Theme = {
   motion: Motion;
 };
 
-export type {
-  DurationName,
-  EasingName,
-  Intent,
-  Theme,
-  TypeRole,
-  TypeRoleName,
-};
+export type { DurationName, EasingName, Intent, Theme, TypeRole, TypeRoleName };
 export { theme };

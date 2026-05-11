@@ -24,55 +24,126 @@ type PulseLineProps = {
   showOutliers?: boolean;
 };
 
-const CANVAS_W = 360;
+type Point = { x: number; y: number };
+type ToneSpec = { stroke: string; deep: string };
 
-const TONE: Record<PulseLineTone, { stroke: string; fill: string; deep: string }> = {
-  recover: {
-    stroke: theme.tokens.intent.recover,
-    deep: theme.tokens.intent.recoverDeep,
-    fill: 'rgba(127, 231, 181, 0.18)',
-  },
-  rest: {
-    stroke: theme.tokens.intent.rest,
-    deep: theme.tokens.intent.restDeep,
-    fill: 'rgba(123, 185, 255, 0.16)',
-  },
-  strain: {
-    stroke: theme.tokens.intent.strain,
-    deep: theme.tokens.intent.strainDeep,
-    fill: 'rgba(168, 139, 255, 0.18)',
-  },
-  notice: {
-    stroke: theme.tokens.intent.notice,
-    deep: theme.tokens.intent.noticeDeep,
-    fill: 'rgba(255, 179, 107, 0.16)',
-  },
-  alert: {
-    stroke: theme.tokens.intent.alert,
-    deep: theme.tokens.intent.alertDeep,
-    fill: 'rgba(255, 123, 123, 0.16)',
-  },
+const CANVAS_W = 360;
+const PAD_Y = 6;
+const PAD_X = 8;
+
+const TONE: Record<PulseLineTone, ToneSpec> = {
+  recover: { stroke: theme.tokens.intent.recover, deep: theme.tokens.intent.recoverDeep },
+  rest: { stroke: theme.tokens.intent.rest, deep: theme.tokens.intent.restDeep },
+  strain: { stroke: theme.tokens.intent.strain, deep: theme.tokens.intent.strainDeep },
+  notice: { stroke: theme.tokens.intent.notice, deep: theme.tokens.intent.noticeDeep },
+  alert: { stroke: theme.tokens.intent.alert, deep: theme.tokens.intent.alertDeep },
 };
 
-const catmullRomPath = (points: { x: number; y: number }[]): string => {
-  if (points.length === 0) return '';
-  if (points.length === 1) {
-    const p = points[0]!;
-    return `M${p.x},${p.y}`;
+const catmullRomPath = (points: Point[]): string => {
+  const head = points[0];
+  if (!head) {
+    return '';
   }
-  const d: string[] = [`M${points[0]!.x},${points[0]!.y}`];
+  if (points.length === 1) {
+    return `M${head.x},${head.y}`;
+  }
+  const segments: string[] = [`M${head.x},${head.y}`];
   for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i]!;
-    const p1 = points[i]!;
-    const p2 = points[i + 1]!;
+    const p1 = points[i] ?? head;
+    const p2 = points[i + 1] ?? p1;
+    const p0 = points[i - 1] ?? p1;
     const p3 = points[i + 2] ?? p2;
     const cp1x = p1.x + (p2.x - p0.x) / 6;
     const cp1y = p1.y + (p2.y - p0.y) / 6;
     const cp2x = p2.x - (p3.x - p1.x) / 6;
     const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d.push(`C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`);
+    segments.push(`C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`);
   }
-  return d.join(' ');
+  return segments.join(' ');
+};
+
+const computePoints = (values: number[], height: number): Point[] => {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const usableW = CANVAS_W - PAD_X * 2;
+  const usableH = height - PAD_Y * 2;
+  return values.map((v, i) => ({
+    x: PAD_X + (i / (values.length - 1)) * usableW,
+    y: PAD_Y + (1 - (v - min) / range) * usableH,
+  }));
+};
+
+const pickOutliers = (values: number[], points: Point[]): Point[] => {
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const variance = values.reduce((a, b) => a + (b - mean) * (b - mean), 0) / values.length;
+  const std = Math.sqrt(variance);
+  const result: Point[] = [];
+  values.forEach((v, i) => {
+    const p = points[i];
+    if (p && Math.abs(v - mean) > std) {
+      result.push(p);
+    }
+  });
+  return result;
+};
+
+type SvgBodyProps = {
+  points: Point[];
+  outliers: Point[];
+  tone: PulseLineTone;
+  height: number;
+  showArea: boolean;
+  showPoint: boolean;
+};
+
+const SvgBody = ({ points, outliers, tone, height, showArea, showPoint }: SvgBodyProps): ReactNode => {
+  const t = TONE[tone];
+  const PathEl = 'path' as unknown as React.ElementType;
+  const CircleEl = 'circle' as unknown as React.ElementType;
+  const DefsEl = 'defs' as unknown as React.ElementType;
+  const GradEl = 'linearGradient' as unknown as React.ElementType;
+  const StopEl = 'stop' as unknown as React.ElementType;
+  const strokeId = `aurora-pulse-stroke-${tone}`;
+  const areaId = `aurora-pulse-area-${tone}`;
+  const path = catmullRomPath(points);
+  const usableW = CANVAS_W - PAD_X * 2;
+  const areaPath = showArea ? `${path} L ${PAD_X + usableW},${height} L ${PAD_X},${height} Z` : '';
+  const last = points[points.length - 1];
+  return (
+    <>
+      <DefsEl>
+        <GradEl id={strokeId} x1="0%" y1="0%" x2="100%" y2="0%">
+          <StopEl offset="0%" stopColor={t.deep} stopOpacity={0.4} />
+          <StopEl offset="40%" stopColor={t.stroke} stopOpacity={1} />
+          <StopEl offset="100%" stopColor={t.stroke} stopOpacity={1} />
+        </GradEl>
+        <GradEl id={areaId} x1="0%" y1="0%" x2="0%" y2="100%">
+          <StopEl offset="0%" stopColor={t.stroke} stopOpacity={0.28} />
+          <StopEl offset="100%" stopColor={t.stroke} stopOpacity={0} />
+        </GradEl>
+      </DefsEl>
+      {showArea ? <PathEl d={areaPath} fill={`url(#${areaId})`} /> : null}
+      <PathEl
+        d={path}
+        fill="none"
+        stroke={`url(#${strokeId})`}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {outliers.map((p, i) => (
+        <CircleEl key={`outlier-${i}`} cx={p.x} cy={p.y} r={3} fill={theme.tokens.intent.notice} opacity={0.9} />
+      ))}
+      {showPoint && last ? (
+        <>
+          <CircleEl cx={last.x} cy={last.y} r={6} fill={t.stroke} opacity={0.18} />
+          <CircleEl cx={last.x} cy={last.y} r={3.5} fill={t.stroke} />
+          <CircleEl cx={last.x} cy={last.y} r={1.5} fill={theme.tokens.surface.base} />
+        </>
+      ) : null}
+    </>
+  );
 };
 
 const PulseLine = ({
@@ -84,129 +155,37 @@ const PulseLine = ({
   showArea = false,
   showOutliers = false,
 }: PulseLineProps): ReactNode => {
-  const t = TONE[tone];
-  // The SVG always draws on a logical canvas (CANVAS_W × height). When `width`
-  // is omitted, the rendered SVG fills its parent — viewBox handles scaling.
   const responsive = width === undefined;
   const renderedWidth = width ?? CANVAS_W;
-  const logicalW = CANVAS_W;
-  if (values.length < 2) {
-    return <View style={{ width: responsive ? '100%' : renderedWidth, height }} />;
+  const containerStyle = {
+    width: responsive ? ('100%' as const) : renderedWidth,
+    height,
+    alignSelf: responsive ? ('stretch' as const) : undefined,
+  };
+  if (values.length < 2 || Platform.OS !== 'web') {
+    return <View style={containerStyle} />;
   }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const padY = 6;
-  // Horizontal padding to keep the witness point's halo from clipping at the
-  // viewBox edge. Matches the point radius (with halo) below.
-  const padX = 8;
-  const usableW = logicalW - padX * 2;
-  const usableH = height - padY * 2;
-  const points = values.map((v, i) => ({
-    x: padX + (i / (values.length - 1)) * usableW,
-    y: padY + (1 - (v - min) / range) * usableH,
-  }));
-  const path = catmullRomPath(points);
-  const areaPath = showArea
-    ? `${path} L ${padX + usableW},${height} L ${padX},${height} Z`
-    : '';
-  const last = points[points.length - 1]!;
-
-  let outliers: { x: number; y: number }[] = [];
-  if (showOutliers) {
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance =
-      values.reduce((a, b) => a + (b - mean) * (b - mean), 0) / values.length;
-    const std = Math.sqrt(variance);
-    outliers = points.filter((_, i) => {
-      const v = values[i]!;
-      return Math.abs(v - mean) > std;
-    });
-  }
-
-  if (Platform.OS === 'web') {
-    const SvgEl = 'svg' as unknown as React.ElementType;
-    const DefsEl = 'defs' as unknown as React.ElementType;
-    const GradEl = 'linearGradient' as unknown as React.ElementType;
-    const StopEl = 'stop' as unknown as React.ElementType;
-    const PathEl = 'path' as unknown as React.ElementType;
-    const CircleEl = 'circle' as unknown as React.ElementType;
-    const StrokeGradId = `aurora-pulse-stroke-${tone}`;
-    const AreaGradId = `aurora-pulse-area-${tone}`;
-    return (
-      <View
-        style={{
-          width: responsive ? '100%' : renderedWidth,
-          height,
-          alignSelf: responsive ? 'stretch' : undefined,
-        }}
-      >
-        <SvgEl
-          width={responsive ? '100%' : renderedWidth}
-          height={height}
-          viewBox={`0 0 ${logicalW} ${height}`}
-          preserveAspectRatio="none"
-        >
-          <DefsEl>
-            <GradEl id={StrokeGradId} x1="0%" y1="0%" x2="100%" y2="0%">
-              <StopEl offset="0%" stopColor={t.deep} stopOpacity={0.4} />
-              <StopEl offset="40%" stopColor={t.stroke} stopOpacity={1} />
-              <StopEl offset="100%" stopColor={t.stroke} stopOpacity={1} />
-            </GradEl>
-            <GradEl id={AreaGradId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <StopEl offset="0%" stopColor={t.stroke} stopOpacity={0.28} />
-              <StopEl offset="100%" stopColor={t.stroke} stopOpacity={0} />
-            </GradEl>
-          </DefsEl>
-          {showArea ? <PathEl d={areaPath} fill={`url(#${AreaGradId})`} /> : null}
-          <PathEl
-            d={path}
-            fill="none"
-            stroke={`url(#${StrokeGradId})`}
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {outliers.map((p, i) => (
-            <CircleEl
-              key={`outlier-${i}`}
-              cx={p.x}
-              cy={p.y}
-              r={3}
-              fill={theme.tokens.intent.notice}
-              opacity={0.9}
-            />
-          ))}
-          {showPoint ? (
-            <>
-              <CircleEl
-                cx={last.x}
-                cy={last.y}
-                r={6}
-                fill={t.stroke}
-                opacity={0.18}
-              />
-              <CircleEl cx={last.x} cy={last.y} r={3.5} fill={t.stroke} />
-              <CircleEl
-                cx={last.x}
-                cy={last.y}
-                r={1.5}
-                fill={theme.tokens.surface.base}
-              />
-            </>
-          ) : null}
-        </SvgEl>
-      </View>
-    );
-  }
+  const points = computePoints(values, height);
+  const outliers = showOutliers ? pickOutliers(values, points) : [];
+  const SvgEl = 'svg' as unknown as React.ElementType;
   return (
-    <View
-      style={{
-        width: responsive ? '100%' : renderedWidth,
-        height,
-        backgroundColor: theme.tokens.surface.raised,
-      }}
-    />
+    <View style={containerStyle}>
+      <SvgEl
+        width={responsive ? '100%' : renderedWidth}
+        height={height}
+        viewBox={`0 0 ${CANVAS_W} ${height}`}
+        preserveAspectRatio="none"
+      >
+        <SvgBody
+          points={points}
+          outliers={outliers}
+          tone={tone}
+          height={height}
+          showArea={showArea}
+          showPoint={showPoint}
+        />
+      </SvgEl>
+    </View>
   );
 };
 

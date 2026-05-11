@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { Ring } from './ring.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Ring } from './ring.tsx';
 
 const meta: Meta<typeof Ring> = {
   title: 'Aurora/Data/Ring',
@@ -31,9 +31,8 @@ const Family: Story = {
           Ring — the shape of completion
         </Text>
         <Text role="body" tone="secondary">
-          Rings carry one number, the one that wants its own room. The gradient
-          isn't decoration — it tells you *which* shape of progress you're
-          looking at without naming it.
+          Rings carry one number, the one that wants its own room. The gradient isn't decoration — it tells you *which*
+          shape of progress you're looking at without naming it.
         </Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 32, flexWrap: 'wrap' }}>

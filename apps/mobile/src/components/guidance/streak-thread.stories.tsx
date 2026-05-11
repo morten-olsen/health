@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
 import { View } from 'react-native';
 
-import { StreakThread } from './streak-thread.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { StreakThread } from './streak-thread.tsx';
 
 const meta: Meta<typeof StreakThread> = {
   title: 'Aurora/Guidance/StreakThread',
@@ -19,9 +20,8 @@ const Set: Story = {
           Streak thread — continuity, not a score
         </Text>
         <Text role="body" tone="secondary">
-          A streak is a thread you've been carrying — not a number to break or
-          defend. Missed days are honored as rest, not as failure. Today is
-          marked with a ring so the eye knows where it stands.
+          A streak is a thread you've been carrying — not a number to break or defend. Missed days are honored as rest,
+          not as failure. Today is marked with a ring so the eye knows where it stands.
         </Text>
       </View>
       <View style={{ gap: 8 }}>

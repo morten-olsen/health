@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Segmented } from './segmented.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Segmented } from './segmented.tsx';
 
 const meta: Meta<typeof Segmented> = {
   title: 'Aurora/Controls/Segmented',

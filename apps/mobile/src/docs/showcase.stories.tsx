@@ -31,7 +31,6 @@ type Story = StoryObj;
 
 const heartSeries = [62, 63, 61, 62, 64, 63, 65, 64, 62, 60, 61, 63, 62, 61];
 const sleepSeries = [6.2, 7.2, 6.8, 7.5, 7.1, 6.9, 7.4, 7.8, 7.6, 8.1, 7.5, 7.8, 8.0, 7.9];
-const hrvSeries = [42, 44, 48, 52, 50, 47, 45, 43, 40, 38, 41, 44, 48, 52, 58];
 
 const StatusBar = (): ReactNode => (
   <View
@@ -99,8 +98,7 @@ const HeroRing = (): ReactNode => (
       </View>
     </View>
     <Text role="body" tone="secondary" align="center" style={{ maxWidth: 320 }}>
-      You're rested. Today is the right day for the longer run you've been
-      circling all week.
+      You're rested. Today is the right day for the longer run you've been circling all week.
     </Text>
   </View>
 );
@@ -223,23 +221,9 @@ const JourneyPreview = (): ReactNode => (
             marginVertical: 8,
           }}
         />
-        <JourneyStep
-          state="past"
-          title="Two short walks"
-          detail="Mon & Tue — completed"
-        />
-        <JourneyStep
-          state="now"
-          icon="spark"
-          title="A longer run today"
-          detail="40 minutes, easy"
-        />
-        <JourneyStep
-          state="next"
-          title="A rest day tomorrow"
-          detail="Sleep is the work"
-          showThread={false}
-        />
+        <JourneyStep state="past" title="Two short walks" detail="Mon & Tue — completed" />
+        <JourneyStep state="now" icon="spark" title="A longer run today" detail="40 minutes, easy" />
+        <JourneyStep state="next" title="A rest day tomorrow" detail="Sleep is the work" showThread={false} />
       </View>
     </Surface>
   </View>
@@ -315,9 +299,8 @@ const Home: Story = {
           A morning, in one glance.
         </Text>
         <Text role="body" tone="secondary" align="center" style={{ maxWidth: 540 }}>
-          The home screen is a single conversation, top to bottom. It opens with
-          how you are, suggests what to do, and only then offers the longer
-          threads. Most days end at the third scroll.
+          The home screen is a single conversation, top to bottom. It opens with how you are, suggests what to do, and
+          only then offers the longer threads. Most days end at the third scroll.
         </Text>
       </View>
       <Phone>

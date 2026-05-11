@@ -25,13 +25,7 @@ const TONE: Record<MetricPillTone, string> = {
   alert: theme.tokens.intent.alert,
 };
 
-const MetricPill = ({
-  label,
-  value,
-  unit,
-  icon,
-  tone = 'recover',
-}: MetricPillProps): ReactNode => {
+const MetricPill = ({ label, value, unit, icon, tone = 'recover' }: MetricPillProps): ReactNode => {
   return (
     <View
       style={{

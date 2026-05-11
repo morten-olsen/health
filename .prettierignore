@@ -1,0 +1,13 @@
+# Auto-generated artefacts — owned by their generator, not Prettier.
+pnpm-lock.yaml
+apps/server/openapi.json
+apps/gb-ingest/src/gb-ingest.api-types.ts
+
+# Build outputs
+**/dist/
+**/.task/
+apps/mobile/.expo/
+apps/mobile/storybook-static/
+
+# Vendored / external
+**/node_modules/

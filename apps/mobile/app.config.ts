@@ -47,13 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     output: 'single',
     favicon: './assets/images/favicon.png',
   },
-  plugins: [
-    'expo-router',
-    'expo-secure-store',
-    'expo-font',
-    'expo-image',
-    'expo-web-browser',
-  ],
+  plugins: ['expo-router', 'expo-secure-store', 'expo-font', 'expo-image', 'expo-web-browser'],
   updates: {
     url: 'https://u.expo.dev/REPLACE_WITH_PROJECT_ID',
   },

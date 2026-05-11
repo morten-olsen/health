@@ -1,6 +1,10 @@
-const impactAsync = async (): Promise<void> => {};
-const notificationAsync = async (): Promise<void> => {};
-const selectionAsync = async (): Promise<void> => {};
+// Storybook web mock — haptics aren't available in the browser, so these
+// resolve immediately to no-ops.
+const noop = (): Promise<void> => Promise.resolve();
+
+const impactAsync = noop;
+const notificationAsync = noop;
+const selectionAsync = noop;
 
 const ImpactFeedbackStyle = {
   Light: 'light',
@@ -16,10 +20,4 @@ const NotificationFeedbackType = {
   Error: 'error',
 } as const;
 
-export {
-  impactAsync,
-  notificationAsync,
-  selectionAsync,
-  ImpactFeedbackStyle,
-  NotificationFeedbackType,
-};
+export { impactAsync, notificationAsync, selectionAsync, ImpactFeedbackStyle, NotificationFeedbackType };

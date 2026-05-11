@@ -30,15 +30,7 @@ const EASING_DESC: Record<EasingName, string> = {
   steady: 'Linear. Only for true continuous motion (shimmer, pulse).',
 };
 
-const MotionDemo = ({
-  duration,
-  easing,
-  active,
-}: {
-  duration: number;
-  easing: string;
-  active: boolean;
-}): ReactNode => (
+const MotionDemo = ({ duration, easing, active }: { duration: number; easing: string; active: boolean }): ReactNode => (
   <View
     style={{
       width: 280,
@@ -68,15 +60,7 @@ const MotionDemo = ({
   </View>
 );
 
-const DurationRow = ({
-  name,
-  ms,
-  active,
-}: {
-  name: DurationName;
-  ms: number;
-  active: boolean;
-}): ReactNode => (
+const DurationRow = ({ name, ms, active }: { name: DurationName; ms: number; active: boolean }): ReactNode => (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
     <View style={{ width: 160, gap: 4 }}>
       <Text role="title">{name}</Text>
@@ -91,15 +75,7 @@ const DurationRow = ({
   </View>
 );
 
-const EasingRow = ({
-  name,
-  curve,
-  active,
-}: {
-  name: EasingName;
-  curve: string;
-  active: boolean;
-}): ReactNode => (
+const EasingRow = ({ name, curve, active }: { name: EasingName; curve: string; active: boolean }): ReactNode => (
   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
     <View style={{ width: 160, gap: 4 }}>
       <Text role="title">{name}</Text>
@@ -107,11 +83,7 @@ const EasingRow = ({
         {curve}
       </Text>
     </View>
-    <MotionDemo
-      duration={theme.motion.duration.breath}
-      easing={curve}
-      active={active}
-    />
+    <MotionDemo duration={theme.motion.duration.breath} easing={curve} active={active} />
     <Text role="caption" tone="tertiary" style={{ flex: 1, maxWidth: 320 }}>
       {EASING_DESC[name]}
     </Text>
@@ -121,55 +93,54 @@ const EasingRow = ({
 const VocabularyView = (): ReactNode => {
   const [active, setActive] = useState(false);
   return (
-      <View style={{ gap: 40, maxWidth: 1100 }}>
-        <View style={{ gap: 10 }}>
-          <Text role="eyebrow" tone="tertiary" uppercase>
-            Aurora · Motion
+    <View style={{ gap: 40, maxWidth: 1100 }}>
+      <View style={{ gap: 10 }}>
+        <Text role="eyebrow" tone="tertiary" uppercase>
+          Aurora · Motion
+        </Text>
+        <Text role="display">Motion is body language.</Text>
+        <Text role="body" tone="secondary" style={{ maxWidth: 640 }}>
+          We name motion for the feeling it should leave behind, never for its duration in milliseconds. Tap the button
+          to replay every motion at once — try to feel which is which.
+        </Text>
+        <Pressable
+          onPress={() => setActive((v) => !v)}
+          style={{
+            alignSelf: 'flex-start',
+            marginTop: 12,
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+            borderRadius: 999,
+            backgroundColor: theme.tokens.ink.primary,
+          }}
+        >
+          <Text role="caption" style={{ color: theme.tokens.ink.inverse, fontWeight: '600' }}>
+            {active ? 'Reset' : 'Play all motions'}
           </Text>
-          <Text role="display">Motion is body language.</Text>
-          <Text role="body" tone="secondary" style={{ maxWidth: 640 }}>
-            We name motion for the feeling it should leave behind, never for its
-            duration in milliseconds. Tap the button to replay every motion at
-            once — try to feel which is which.
-          </Text>
-          <Pressable
-            onPress={() => setActive((v) => !v)}
-            style={{
-              alignSelf: 'flex-start',
-              marginTop: 12,
-              paddingHorizontal: 20,
-              paddingVertical: 12,
-              borderRadius: 999,
-              backgroundColor: theme.tokens.ink.primary,
-            }}
-          >
-            <Text role="caption" style={{ color: theme.tokens.ink.inverse, fontWeight: '600' }}>
-              {active ? 'Reset' : 'Play all motions'}
-            </Text>
-          </Pressable>
-        </View>
-
-        <View style={{ gap: 20 }}>
-          <Text role="eyebrow" tone="tertiary" uppercase>
-            Durations
-          </Text>
-          <DurationRow name="flick" ms={theme.motion.duration.flick} active={active} />
-          <DurationRow name="gentle" ms={theme.motion.duration.gentle} active={active} />
-          <DurationRow name="breath" ms={theme.motion.duration.breath} active={active} />
-          <DurationRow name="arrival" ms={theme.motion.duration.arrival} active={active} />
-          <DurationRow name="tide" ms={theme.motion.duration.tide} active={active} />
-        </View>
-
-        <View style={{ gap: 20 }}>
-          <Text role="eyebrow" tone="tertiary" uppercase>
-            Easings
-          </Text>
-          <EasingRow name="glide" curve={theme.motion.easing.glide} active={active} />
-          <EasingRow name="arrive" curve={theme.motion.easing.arrive} active={active} />
-          <EasingRow name="dive" curve={theme.motion.easing.dive} active={active} />
-          <EasingRow name="spring" curve={theme.motion.easing.spring} active={active} />
-        </View>
+        </Pressable>
       </View>
+
+      <View style={{ gap: 20 }}>
+        <Text role="eyebrow" tone="tertiary" uppercase>
+          Durations
+        </Text>
+        <DurationRow name="flick" ms={theme.motion.duration.flick} active={active} />
+        <DurationRow name="gentle" ms={theme.motion.duration.gentle} active={active} />
+        <DurationRow name="breath" ms={theme.motion.duration.breath} active={active} />
+        <DurationRow name="arrival" ms={theme.motion.duration.arrival} active={active} />
+        <DurationRow name="tide" ms={theme.motion.duration.tide} active={active} />
+      </View>
+
+      <View style={{ gap: 20 }}>
+        <Text role="eyebrow" tone="tertiary" uppercase>
+          Easings
+        </Text>
+        <EasingRow name="glide" curve={theme.motion.easing.glide} active={active} />
+        <EasingRow name="arrive" curve={theme.motion.easing.arrive} active={active} />
+        <EasingRow name="dive" curve={theme.motion.easing.dive} active={active} />
+        <EasingRow name="spring" curve={theme.motion.easing.spring} active={active} />
+      </View>
+    </View>
   );
 };
 

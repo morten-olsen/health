@@ -5,16 +5,7 @@ import type { TextProps as RNTextProps, TextStyle } from 'react-native';
 import { theme } from '../../shared/theme/theme.ts';
 import type { TypeRoleName } from '../../shared/theme/theme.ts';
 
-type TextTone =
-  | 'primary'
-  | 'secondary'
-  | 'tertiary'
-  | 'inverse'
-  | 'rest'
-  | 'recover'
-  | 'strain'
-  | 'notice'
-  | 'alert';
+type TextTone = 'primary' | 'secondary' | 'tertiary' | 'inverse' | 'rest' | 'recover' | 'strain' | 'notice' | 'alert';
 
 type TextProps = {
   role?: TypeRoleName;
@@ -65,9 +56,7 @@ const Text = ({
   // Variable-font axes only apply on web; quietly drop on native.
   const variation = 'fontVariationSettings' in spec ? spec.fontVariationSettings : undefined;
   const variableStyle =
-    Platform.OS === 'web' && variation
-      ? ({ fontVariationSettings: variation } as unknown as TextStyle)
-      : undefined;
+    Platform.OS === 'web' && variation ? ({ fontVariationSettings: variation } as unknown as TextStyle) : undefined;
   return (
     <RNText
       style={[baseStyle, variableStyle, style]}

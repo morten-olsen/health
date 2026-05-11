@@ -65,8 +65,8 @@ const Scale: Story = {
         </Text>
         <Text role="display">A soft progression.</Text>
         <Text role="body" tone="secondary" style={{ maxWidth: 640 }}>
-          Spacing isn't a strict 4 or 8 grid. Tighter at small sizes — where space
-          reads as breath — looser at large, where it reads as composition.
+          Spacing isn't a strict 4 or 8 grid. Tighter at small sizes — where space reads as breath — looser at large,
+          where it reads as composition.
         </Text>
       </View>
       <View style={{ gap: 12 }}>

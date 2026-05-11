@@ -66,9 +66,7 @@ const variantStyle = (
   if (variant === 'soft') {
     return {
       container: {
-        backgroundColor: pressed
-          ? hexToRgba(toneColor, 0.24)
-          : hexToRgba(toneColor, 0.14),
+        backgroundColor: pressed ? hexToRgba(toneColor, 0.24) : hexToRgba(toneColor, 0.14),
       },
       textColor: tone === 'neutral' ? theme.tokens.ink.primary : toneColor,
     };
@@ -140,10 +138,7 @@ const Button = ({
             }}
           >
             {icon ? <Icon name={icon} size={SIZE_ICON[size]} tone="primary" style={{ opacity: 0.95 }} /> : null}
-            <Text
-              role={size === 'lg' ? 'title' : 'body'}
-              style={{ color: v.textColor, fontWeight: '600' }}
-            >
+            <Text role={size === 'lg' ? 'title' : 'body'} style={{ color: v.textColor, fontWeight: '600' }}>
               {label}
             </Text>
             {trailingIcon ? (

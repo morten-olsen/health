@@ -34,34 +34,45 @@ const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const Chip = ({
-  label,
-  icon,
-  tone = 'neutral',
-  selected = false,
-  onPress,
-}: ChipProps): ReactNode => {
+type ChipIconTone = 'inverse' | 'tertiary' | Exclude<ChipTone, 'neutral'>;
+type ChipVisuals = {
+  bg: string;
+  border: string;
+  text: string;
+  iconTone: ChipIconTone;
+};
+
+const visualsFor = (tone: ChipTone, selected: boolean, pressed: boolean): ChipVisuals => {
+  if (!selected) {
+    return {
+      bg: pressed ? theme.tokens.surface.card : 'transparent',
+      border: theme.tokens.surface.hairlineStrong,
+      text: theme.tokens.ink.secondary,
+      iconTone: 'tertiary',
+    };
+  }
+  if (tone === 'neutral') {
+    return {
+      bg: theme.tokens.ink.primary,
+      border: 'transparent',
+      text: theme.tokens.ink.inverse,
+      iconTone: 'inverse',
+    };
+  }
   const tc = TONE_COLOR[tone];
+  return {
+    bg: hexToRgba(tc, 0.18),
+    border: hexToRgba(tc, 0.4),
+    text: tc,
+    iconTone: tone,
+  };
+};
+
+const Chip = ({ label, icon, tone = 'neutral', selected = false, onPress }: ChipProps): ReactNode => {
   return (
     <Pressable onPress={onPress}>
       {({ pressed }: { pressed: boolean }): ReactNode => {
-        const bg = selected
-          ? tone === 'neutral'
-            ? theme.tokens.ink.primary
-            : hexToRgba(tc, 0.18)
-          : pressed
-            ? theme.tokens.surface.card
-            : 'transparent';
-        const borderColor = selected
-          ? tone === 'neutral'
-            ? 'transparent'
-            : hexToRgba(tc, 0.4)
-          : theme.tokens.surface.hairlineStrong;
-        const textColor = selected
-          ? tone === 'neutral'
-            ? theme.tokens.ink.inverse
-            : tc
-          : theme.tokens.ink.secondary;
+        const v = visualsFor(tone, selected, pressed);
         return (
           <View
             style={[
@@ -72,9 +83,9 @@ const Chip = ({
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 6,
-                backgroundColor: bg,
+                backgroundColor: v.bg,
                 borderWidth: 1,
-                borderColor,
+                borderColor: v.border,
               },
               Platform.OS === 'web'
                 ? ({
@@ -83,14 +94,8 @@ const Chip = ({
                 : null,
             ]}
           >
-            {icon ? (
-              <Icon
-                name={icon}
-                size={14}
-                tone={selected ? (tone === 'neutral' ? 'inverse' : tone === 'rest' ? 'rest' : tone === 'recover' ? 'recover' : tone === 'strain' ? 'strain' : tone === 'notice' ? 'notice' : 'alert') : 'tertiary'}
-              />
-            ) : null}
-            <Text role="caption" style={{ color: textColor, fontWeight: '500' }}>
+            {icon ? <Icon name={icon} size={14} tone={v.iconTone} /> : null}
+            <Text role="caption" style={{ color: v.text, fontWeight: '500' }}>
               {label}
             </Text>
           </View>

@@ -38,10 +38,9 @@ const Set: Story = {
         </Text>
         <Text role="display">A small set, drawn by hand.</Text>
         <Text role="body" tone="secondary">
-          Monoline. 1.5 stroke. Rounded caps. Generous negative space. We carry
-          our own paths because the icon set is part of the system, not a
-          commodity. If a glyph isn't here, ask whether it earns being added —
-          or whether the screen needs less.
+          Monoline. 1.5 stroke. Rounded caps. Generous negative space. We carry our own paths because the icon set is
+          part of the system, not a commodity. If a glyph isn't here, ask whether it earns being added — or whether the
+          screen needs less.
         </Text>
       </View>
       <View

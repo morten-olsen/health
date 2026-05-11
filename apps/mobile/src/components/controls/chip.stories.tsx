@@ -3,8 +3,9 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Chip } from './chip.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { Chip } from './chip.tsx';
 
 const meta: Meta<typeof Chip> = {
   title: 'Aurora/Controls/Chip',
@@ -24,12 +25,7 @@ const Filters = (): ReactNode => {
   return (
     <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
       {options.map((o) => (
-        <Chip
-          key={o.id}
-          label={o.label}
-          selected={selected === o.id}
-          onPress={() => setSelected(o.id)}
-        />
+        <Chip key={o.id} label={o.label} selected={selected === o.id} onPress={() => setSelected(o.id)} />
       ))}
     </View>
   );

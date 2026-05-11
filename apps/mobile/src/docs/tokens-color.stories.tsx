@@ -11,15 +11,7 @@ const meta: Meta = {
 
 type Story = StoryObj;
 
-const Swatch = ({
-  name,
-  value,
-  bg,
-}: {
-  name: string;
-  value: string;
-  bg?: string;
-}): ReactNode => (
+const Swatch = ({ name, value, bg }: { name: string; value: string; bg?: string }): ReactNode => (
   <View style={{ width: 200, gap: 8 }}>
     <View
       style={{
@@ -78,10 +70,8 @@ const Palette: Story = {
         </Text>
         <Text role="display">Color is signal.</Text>
         <Text role="body" tone="secondary" style={{ maxWidth: 640 }}>
-          The palette has two registers. Graphite and paper handle structure —
-          they're the air the system breathes in. The five glow colors handle
-          meaning — they only appear where they say something the user needs to
-          read.
+          The palette has two registers. Graphite and paper handle structure — they're the air the system breathes in.
+          The five glow colors handle meaning — they only appear where they say something the user needs to read.
         </Text>
       </View>
 

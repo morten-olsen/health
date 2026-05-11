@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { PulseLine } from './pulse-line.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { PulseLine } from './pulse-line.tsx';
 
 const heartRate = [62, 64, 65, 63, 66, 68, 71, 74, 79, 84, 88, 92, 96, 94, 90, 86, 80, 74, 70, 66, 64, 63];
 const sleep = [6.2, 6.8, 7.4, 6.9, 7.2, 7.8, 8.1, 7.9, 7.2, 6.8, 6.4, 7.1, 7.5, 7.9, 8.2];
@@ -35,9 +35,8 @@ const Voices: Story = {
           Pulse-line — the shape of a number
         </Text>
         <Text role="body" tone="secondary">
-          A metric without a line is half a sentence. Aurora draws sparklines
-          with a Catmull-Rom spline (a calm curve, no jagged edges), a soft
-          gradient stroke, and a single witness point at the latest value.
+          A metric without a line is half a sentence. Aurora draws sparklines with a Catmull-Rom spline (a calm curve,
+          no jagged edges), a soft gradient stroke, and a single witness point at the latest value.
         </Text>
       </View>
       <View style={{ gap: 6 }}>
@@ -62,13 +61,7 @@ const Voices: Story = {
         <Text role="caption" tone="tertiary">
           Resting HR · one quiet outlier
         </Text>
-        <PulseLine
-          values={spike}
-          tone="notice"
-          height={88}
-          showArea
-          showOutliers
-        />
+        <PulseLine values={spike} tone="notice" height={88} showArea showOutliers />
       </View>
     </View>
   ),

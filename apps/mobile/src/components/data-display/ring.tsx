@@ -26,126 +26,141 @@ const TONE: Record<RingTone, { from: string; to: string }> = {
   alert: { from: theme.tokens.intent.alert, to: theme.tokens.intent.alertDeep },
 };
 
-const Ring = ({
-  progress,
-  size = 200,
-  thickness = 16,
-  tone = 'recover',
-  label,
-  value,
-  unit,
-}: RingProps): ReactNode => {
-  const clamped = Math.max(0, Math.min(1, progress));
+type RingSvgProps = {
+  size: number;
+  thickness: number;
+  progress: number;
+  tone: RingTone;
+};
+
+const RingSvg = ({ size, thickness, progress, tone }: RingSvgProps): ReactNode => {
   const radius = (size - thickness) / 2;
   const circumference = 2 * Math.PI * radius;
-  const dashOffset = circumference * (1 - clamped);
+  const dashOffset = circumference * (1 - progress);
   const colors = TONE[tone];
+  const SvgEl = 'svg' as unknown as React.ElementType;
+  const CircleEl = 'circle' as unknown as React.ElementType;
+  const DefsEl = 'defs' as unknown as React.ElementType;
+  const GradEl = 'linearGradient' as unknown as React.ElementType;
+  const StopEl = 'stop' as unknown as React.ElementType;
+  const FilterEl = 'filter' as unknown as React.ElementType;
+  const FeGaussian = 'feGaussianBlur' as unknown as React.ElementType;
+  const FeMerge = 'feMerge' as unknown as React.ElementType;
+  const FeMergeNode = 'feMergeNode' as unknown as React.ElementType;
+  const gradId = `aurora-ring-${tone}`;
+  const glowId = `aurora-glow-${tone}`;
+  return (
+    <SvgEl
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ position: 'absolute', transform: 'rotate(-90deg)' }}
+    >
+      <DefsEl>
+        <GradEl id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <StopEl offset="0%" stopColor={colors.from} />
+          <StopEl offset="100%" stopColor={colors.to} />
+        </GradEl>
+        <FilterEl id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+          <FeGaussian stdDeviation="3" result="blur" />
+          <FeMerge>
+            <FeMergeNode in="blur" />
+            <FeMergeNode in="SourceGraphic" />
+          </FeMerge>
+        </FilterEl>
+      </DefsEl>
+      <CircleEl
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={theme.tokens.surface.edge}
+        strokeWidth={thickness}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <CircleEl
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={`url(#${gradId})`}
+        strokeWidth={thickness}
+        fill="none"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={dashOffset}
+        filter={`url(#${glowId})`}
+        style={
+          {
+            transition: `stroke-dashoffset ${theme.motion.duration.arrival}ms ${theme.motion.easing.arrive}`,
+          } as unknown as React.CSSProperties
+        }
+      />
+    </SvgEl>
+  );
+};
 
-  if (Platform.OS === 'web') {
-    const SvgEl = 'svg' as unknown as React.ElementType;
-    const CircleEl = 'circle' as unknown as React.ElementType;
-    const DefsEl = 'defs' as unknown as React.ElementType;
-    const GradEl = 'linearGradient' as unknown as React.ElementType;
-    const StopEl = 'stop' as unknown as React.ElementType;
-    const FilterEl = 'filter' as unknown as React.ElementType;
-    const FeGaussian = 'feGaussianBlur' as unknown as React.ElementType;
-    const FeMerge = 'feMerge' as unknown as React.ElementType;
-    const FeMergeNode = 'feMergeNode' as unknown as React.ElementType;
-    const gradId = `aurora-ring-${tone}`;
-    const glowId = `aurora-glow-${tone}`;
+type CenterLabelProps = {
+  label?: string;
+  value?: string;
+  unit?: string;
+};
+
+const CenterLabel = ({ label, value, unit }: CenterLabelProps): ReactNode => {
+  if (!label && !value) {
+    return null;
+  }
+  return (
+    <View style={{ alignItems: 'center', gap: 2 }}>
+      {label ? (
+        <Text role="eyebrow" tone="tertiary" uppercase>
+          {label}
+        </Text>
+      ) : null}
+      {value ? (
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+          <Text role="bigNumeral">{value}</Text>
+          {unit ? (
+            <Text role="caption" tone="tertiary">
+              {unit}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
+const Ring = ({ progress, size = 200, thickness = 16, tone = 'recover', label, value, unit }: RingProps): ReactNode => {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const colors = TONE[tone];
+  if (Platform.OS !== 'web') {
     return (
       <View
         style={{
           width: size,
           height: size,
+          borderRadius: size / 2,
+          borderWidth: thickness,
+          borderColor: colors.from,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <SvgEl
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          style={{ position: 'absolute', transform: 'rotate(-90deg)' }}
-        >
-          <DefsEl>
-            <GradEl id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <StopEl offset="0%" stopColor={colors.from} />
-              <StopEl offset="100%" stopColor={colors.to} />
-            </GradEl>
-            <FilterEl id={glowId} x="-30%" y="-30%" width="160%" height="160%">
-              <FeGaussian stdDeviation="3" result="blur" />
-              <FeMerge>
-                <FeMergeNode in="blur" />
-                <FeMergeNode in="SourceGraphic" />
-              </FeMerge>
-            </FilterEl>
-          </DefsEl>
-          {/* Track — a faint, even ring. */}
-          <CircleEl
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={theme.tokens.surface.edge}
-            strokeWidth={thickness}
-            fill="none"
-            strokeLinecap="round"
-          />
-          {/* Progress — the only colored stroke. */}
-          <CircleEl
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={`url(#${gradId})`}
-            strokeWidth={thickness}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashOffset}
-            filter={`url(#${glowId})`}
-            style={
-              {
-                transition: `stroke-dashoffset ${theme.motion.duration.arrival}ms ${theme.motion.easing.arrive}`,
-              } as unknown as React.CSSProperties
-            }
-          />
-        </SvgEl>
-        {(value || label) && (
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            {label ? (
-              <Text role="eyebrow" tone="tertiary" uppercase>
-                {label}
-              </Text>
-            ) : null}
-            {value ? (
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                <Text role="bigNumeral">{value}</Text>
-                {unit ? (
-                  <Text role="caption" tone="tertiary">
-                    {unit}
-                  </Text>
-                ) : null}
-              </View>
-            ) : null}
-          </View>
-        )}
+        {value ? <Text role="bigNumeral">{value}</Text> : null}
       </View>
     );
   }
-  // Native fallback — a simple stacked disc; ring SVG arrives with react-native-svg.
   return (
     <View
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
-        borderWidth: thickness,
-        borderColor: colors.from,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      {value ? <Text role="bigNumeral">{value}</Text> : null}
+      <RingSvg size={size} thickness={thickness} progress={clamped} tone={tone} />
+      <CenterLabel label={label} value={value} unit={unit} />
     </View>
   );
 };

@@ -23,8 +23,8 @@ const Elevations: Story = {
         Elevations — graphite layers
       </Text>
       <Text role="body" tone="secondary">
-        Depth in Aurora is tone, not shadow. Each layer steps a little closer to the eye —
-        never far enough to feel detached.
+        Depth in Aurora is tone, not shadow. Each layer steps a little closer to the eye — never far enough to feel
+        detached.
       </Text>
       {(['base', 'raised', 'card', 'cardRaised'] as const).map((el) => (
         <Surface key={el} elevation={el} padding={24}>
@@ -45,8 +45,7 @@ const Glows: Story = {
         Glows — semantic light
       </Text>
       <Text role="body" tone="secondary">
-        A surface only glows when it is carrying state. Glow is the system's
-        whisper — never a label, always a presence.
+        A surface only glows when it is carrying state. Glow is the system's whisper — never a label, always a presence.
       </Text>
       {(['recover', 'rest', 'strain', 'notice', 'alert'] as const).map((g) => (
         <Surface key={g} elevation="card" padding={24} glow={g}>

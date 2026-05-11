@@ -147,6 +147,12 @@ export default tseslint.config(
     extends: [importPlugin.flatConfigs.recommended, importPlugin.flatConfigs.typescript],
     rules: {
       'import/no-unresolved': 'off',
+      // Disabled — the rule's exports-walker fails on packages with non-JS
+      // entry points (react-native ships .flow + .d.ts as the public surface)
+      // and emits a spurious "parser.parse is not a function" parse error.
+      // We never use `import * as X` namespace patterns; TypeScript's own
+      // type-checking covers what this rule is meant to enforce.
+      'import/namespace': 'off',
       'import/extensions': ['error', 'ignorePackages'],
       'import/exports-last': 'error',
       'import/no-default-export': 'error',
@@ -210,8 +216,18 @@ export default tseslint.config(
   },
   {
     files: ['**/*.config.ts', '**/*.config.mjs', '**/*.config.js', '**/vitest.workspace.ts'],
+    languageOptions: {
+      globals: {
+        module: 'readonly',
+        require: 'readonly',
+        process: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
     rules: {
       'import/no-default-export': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   {

@@ -15,7 +15,11 @@
     color: #f2efe9;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:
+      'Geist',
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
   }
 
   /* Tabular numerals everywhere — Aurora's numbers should never dance. */
@@ -26,31 +30,56 @@
 }
 
 @keyframes aurora-pulse {
-  0% { opacity: 0.32; transform: scale(0.7); }
-  50% { opacity: 0.08; transform: scale(1.2); }
-  100% { opacity: 0.32; transform: scale(0.7); }
+  0% {
+    opacity: 0.32;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 0.08;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0.32;
+    transform: scale(0.7);
+  }
 }
 
 @keyframes aurora-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 @keyframes aurora-rise {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @layer utilities {
   .font-numeric {
     font-family: 'Fraunces', serif;
-    font-variation-settings: 'opsz' 96, 'SOFT' 30, 'wght' 350;
+    font-variation-settings:
+      'opsz' 96,
+      'SOFT' 30,
+      'wght' 350;
     font-variant-numeric: tabular-nums;
   }
 
   .font-display {
     font-family: 'Fraunces', serif;
-    font-variation-settings: 'opsz' 96, 'SOFT' 80, 'wght' 400;
+    font-variation-settings:
+      'opsz' 96,
+      'SOFT' 80,
+      'wght' 400;
   }
 
   /* Aurora hairline — sub-pixel border that survives at any DPR. */

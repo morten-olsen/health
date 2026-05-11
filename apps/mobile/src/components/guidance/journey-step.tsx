@@ -26,6 +26,48 @@ const STATE_COLOR: Record<JourneyState, string> = {
   future: theme.tokens.surface.edge,
 };
 
+const TITLE_TONE: Record<JourneyState, 'primary' | 'secondary' | 'tertiary'> = {
+  past: 'secondary',
+  now: 'primary',
+  next: 'primary',
+  future: 'tertiary',
+};
+
+type DotProps = {
+  state: JourneyState;
+  icon: IconName;
+  tone: NonNullable<JourneyStepProps['tone']>;
+};
+
+const Dot = ({ state, icon, tone }: DotProps): ReactNode => {
+  const isNow = state === 'now';
+  const dotColor = isNow ? theme.tokens.intent[tone] : STATE_COLOR[state];
+  return (
+    <View
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: isNow ? 'rgba(127, 231, 181, 0.12)' : 'transparent',
+        borderWidth: isNow ? 0 : 1,
+        borderColor: dotColor,
+      }}
+    >
+      {state === 'past' ? (
+        <Icon name="check" size={14} tone="recover" />
+      ) : isNow ? (
+        <Icon name={icon} size={14} tone={tone} />
+      ) : (
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: dotColor }} />
+      )}
+    </View>
+  );
+};
+
+const isThreadLit = (state: JourneyState): boolean => state === 'past' || state === 'now';
+
 const JourneyStep = ({
   title,
   detail,
@@ -34,51 +76,16 @@ const JourneyStep = ({
   tone = 'recover',
   showThread = true,
 }: JourneyStepProps): ReactNode => {
-  const isNow = state === 'now';
-  const isPast = state === 'past';
-  const dotColor = isNow ? theme.tokens.intent[tone] : STATE_COLOR[state];
-  const titleTone =
-    state === 'future' ? 'tertiary' : state === 'past' ? 'secondary' : 'primary';
   return (
     <View style={{ flexDirection: 'row', gap: 14 }}>
       <View style={{ alignItems: 'center', width: 28 }}>
-        <View
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 14,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: isNow
-              ? 'rgba(127, 231, 181, 0.12)'
-              : 'transparent',
-            borderWidth: isNow ? 0 : 1,
-            borderColor: dotColor,
-          }}
-        >
-          {isPast ? (
-            <Icon name="check" size={14} tone="recover" />
-          ) : isNow ? (
-            <Icon name={icon} size={14} tone={tone} />
-          ) : (
-            <View
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor: dotColor,
-              }}
-            />
-          )}
-        </View>
+        <Dot state={state} icon={icon} tone={tone} />
         {showThread ? (
           <View
             style={{
               flex: 1,
               width: 1,
-              backgroundColor: state === 'past' || isNow
-                ? 'rgba(127, 231, 181, 0.32)'
-                : theme.tokens.surface.hairlineStrong,
+              backgroundColor: isThreadLit(state) ? 'rgba(127, 231, 181, 0.32)' : theme.tokens.surface.hairlineStrong,
               marginTop: 6,
               minHeight: 28,
             }}
@@ -86,7 +93,7 @@ const JourneyStep = ({
         ) : null}
       </View>
       <View style={{ flex: 1, paddingBottom: showThread ? 24 : 0, gap: 4 }}>
-        <Text role="title" tone={titleTone}>
+        <Text role="title" tone={TITLE_TONE[state]}>
           {title}
         </Text>
         {detail ? (

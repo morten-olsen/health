@@ -5,9 +5,10 @@ import { Icon } from '../primitives/icon.tsx';
 import { Surface } from '../primitives/surface.tsx';
 import { Text } from '../primitives/text.tsx';
 import type { IconName } from '../primitives/icon.tsx';
+import { theme } from '../../shared/theme/theme.ts';
+
 import { PulseLine } from './pulse-line.tsx';
 import type { PulseLineTone } from './pulse-line.tsx';
-import { theme } from '../../shared/theme/theme.ts';
 
 type Trend = {
   direction: 'up' | 'down' | 'steady';
@@ -42,6 +43,23 @@ const TREND_ICON: Record<Trend['direction'], IconName> = {
   steady: 'pulse',
 };
 
+const TONE_COLOR: Record<PulseLineTone, string> = {
+  rest: theme.tokens.intent.rest,
+  recover: theme.tokens.intent.recover,
+  strain: theme.tokens.intent.strain,
+  notice: theme.tokens.intent.notice,
+  alert: theme.tokens.intent.alert,
+};
+
+const TrendRow = ({ trend, tone }: { trend: Trend; tone: PulseLineTone }): ReactNode => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+    <Icon name={TREND_ICON[trend.direction]} size={14} tone={tone} />
+    <Text role="caption" style={{ color: TONE_COLOR[tone], fontWeight: '600' }}>
+      {trend.label}
+    </Text>
+  </View>
+);
+
 const MetricCard = ({
   kind,
   value,
@@ -54,12 +72,7 @@ const MetricCard = ({
   glow = false,
 }: MetricCardProps): ReactNode => {
   return (
-    <Surface
-      elevation="card"
-      radius="xl"
-      glow={glow ? tone : 'none'}
-      padding={24}
-    >
+    <Surface elevation="card" radius="xl" glow={glow ? tone : 'none'} padding={24}>
       <View style={{ gap: 18 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon ? <Icon name={icon} size={14} tone="tertiary" /> : null}
@@ -77,39 +90,11 @@ const MetricCard = ({
           ) : null}
         </View>
 
-        {values && values.length > 1 ? (
-          <PulseLine values={values} tone={tone} height={56} showArea />
-        ) : null}
+        {values && values.length > 1 ? <PulseLine values={values} tone={tone} height={56} showArea /> : null}
 
         {(context || trend) && (
           <View style={{ gap: 8 }}>
-            {trend ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Icon
-                  name={TREND_ICON[trend.direction]}
-                  size={14}
-                  tone={tone}
-                />
-                <Text
-                  role="caption"
-                  style={{
-                    color:
-                      tone === 'rest'
-                        ? theme.tokens.intent.rest
-                        : tone === 'recover'
-                          ? theme.tokens.intent.recover
-                          : tone === 'strain'
-                            ? theme.tokens.intent.strain
-                            : tone === 'notice'
-                              ? theme.tokens.intent.notice
-                              : theme.tokens.intent.alert,
-                    fontWeight: '600',
-                  }}
-                >
-                  {trend.label}
-                </Text>
-              </View>
-            ) : null}
+            {trend ? <TrendRow trend={trend} tone={tone} /> : null}
             {context ? (
               <Text role="body" tone="secondary">
                 {context}

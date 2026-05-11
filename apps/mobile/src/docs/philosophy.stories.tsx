@@ -36,14 +36,14 @@ const PRINCIPLES: Principle[] = [
     number: '02',
     name: 'Hush',
     oneLine: 'Quiet by default.',
-    body: "The screen exhales before it inhales. We open with negative space, with a single sentence, with one breath. Density is earned by exploration, never imposed at the door. The first glance should leave the user feeling calmer than the moment they opened the app — even if the news is hard.",
+    body: 'The screen exhales before it inhales. We open with negative space, with a single sentence, with one breath. Density is earned by exploration, never imposed at the door. The first glance should leave the user feeling calmer than the moment they opened the app — even if the news is hard.',
     color: theme.tokens.intent.rest,
   },
   {
     number: '03',
     name: 'Glow',
     oneLine: 'Color is meaning.',
-    body: "Every coloured pixel says something. Aurora green is recovery; tide blue is rest; plasma is push; solar is notice; ember is alert. Surfaces and chrome are graphite and paper. We never use color to decorate, only to inform — and the language stays consistent so the user learns to read it like fluency.",
+    body: 'Every coloured pixel says something. Aurora green is recovery; tide blue is rest; plasma is push; solar is notice; ember is alert. Surfaces and chrome are graphite and paper. We never use color to decorate, only to inform — and the language stays consistent so the user learns to read it like fluency.',
     color: theme.tokens.intent.strain,
   },
   {
@@ -92,16 +92,13 @@ const Hero = (): ReactNode => (
       Aware by design.
     </Text>
     <Text role="heading" tone="secondary" style={{ maxWidth: 640, fontWeight: '400' }}>
-      An open alternative to the closed health platforms. Aurora is a visual
-      language for moving through your life — not a dashboard to manage it.
-      The interface is a companion: quiet when there's nothing to say,
-      luminous when there is.
+      An open alternative to the closed health platforms. Aurora is a visual language for moving through your life — not
+      a dashboard to manage it. The interface is a companion: quiet when there's nothing to say, luminous when there is.
     </Text>
   </View>
 );
 
-const PrincipleRow = ({ p, index }: { p: Principle; index: number }): ReactNode => {
-  const isReversed = index % 2 === 1;
+const PrincipleRow = ({ p }: { p: Principle }): ReactNode => {
   return (
     <View
       style={{
@@ -114,10 +111,7 @@ const PrincipleRow = ({ p, index }: { p: Principle; index: number }): ReactNode 
       }}
     >
       <View style={{ width: 200, gap: 12 }}>
-        <Text
-          role="mono"
-          style={{ color: p.color, letterSpacing: 4, fontWeight: '600' }}
-        >
+        <Text role="mono" style={{ color: p.color, letterSpacing: 4, fontWeight: '600' }}>
           {p.number}
         </Text>
         <Text
@@ -233,15 +227,11 @@ const Closing = (): ReactNode => (
     <Text role="eyebrow" tone="tertiary" uppercase>
       The road ahead
     </Text>
-    <Text role="display">
-      Today, a glance.{'\n'}Tomorrow, a companion.
-    </Text>
+    <Text role="display">Today, a glance.{'\n'}Tomorrow, a companion.</Text>
     <Text role="body" tone="secondary">
-      Aurora begins as a way to see what's happening in your body. It grows
-      into a way to move through your life with that knowledge gently held —
-      programs, easings, returns from rest, the small turns that compose a
-      year of health. The system is built so that the day we add coaching
-      to the surface, none of the language has to change.
+      Aurora begins as a way to see what's happening in your body. It grows into a way to move through your life with
+      that knowledge gently held — programs, easings, returns from rest, the small turns that compose a year of health.
+      The system is built so that the day we add coaching to the surface, none of the language has to change.
     </Text>
   </View>
 );
@@ -258,8 +248,8 @@ const Document: Story = {
     >
       <Hero />
       <View>
-        {PRINCIPLES.map((p, i) => (
-          <PrincipleRow key={p.number} p={p} index={i} />
+        {PRINCIPLES.map((p) => (
+          <PrincipleRow key={p.number} p={p} />
         ))}
       </View>
       <Practices />

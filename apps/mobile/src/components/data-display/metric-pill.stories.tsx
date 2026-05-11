@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-native-web-vite';
-import type { ReactNode } from 'react';
 import { View } from 'react-native';
 
-import { MetricPill } from './metric-pill.tsx';
 import { Text } from '../primitives/text.tsx';
+
+import { MetricPill } from './metric-pill.tsx';
 
 const meta: Meta<typeof MetricPill> = {
   title: 'Aurora/Data/MetricPill',
@@ -19,8 +19,8 @@ const Set: Story = {
         Metric pill — quiet, dense, glanceable
       </Text>
       <Text role="body" tone="secondary">
-        For rows of supporting numbers. Smaller than a card, bigger than a chip —
-        the unit you'd line up beneath a hero card to fill in the rest of a story.
+        For rows of supporting numbers. Smaller than a card, bigger than a chip — the unit you'd line up beneath a hero
+        card to fill in the rest of a story.
       </Text>
       <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
         <MetricPill icon="heart" label="Resting" value="63" unit="bpm" tone="recover" />
